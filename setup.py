@@ -29,6 +29,5 @@ setup(
     packages=['product_classificator'],
     long_description=readme(),
     long_description_content_type='text/markdown',
-    url='https://github.com/SergeiSah/Product_classification.git',
     install_requires=get_requirements(),
 )
