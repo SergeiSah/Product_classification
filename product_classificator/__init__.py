@@ -1,6 +1,9 @@
+import sys
 from .classification_heads import *
 from .classificator import Classificator
 
+
+sys.path.append('.classification_heads')
 
 PRETRAINED_HEADS = {
     'category': 'mlp_category',
