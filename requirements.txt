@@ -1,5 +1,2 @@
-torch>=2.3.0
-numpy>=1.26.3
 pillow>=10.2.0
 ruclip>=0.0.2
-setuptools>=69.5.1
