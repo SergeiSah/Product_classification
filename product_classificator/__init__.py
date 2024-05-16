@@ -12,5 +12,5 @@ PRETRAINED_HEADS = {
     'fragility': 'mlp_fragility'
 }
 
-__all__ = ['PRETRAINED_CLASSES', 'Classificator']
+__all__ = ['PRETRAINED_HEADS', 'Classificator']
 __version__ = '0.0.1'

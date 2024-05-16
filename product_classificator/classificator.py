@@ -1,13 +1,10 @@
-import os
-import pickle
-import torch
 import numpy as np
 import ruclip
 from PIL import Image
+from .classification_heads import *
 
 
 class Classificator:
-    path_to_heads = os.path.dirname(__file__) + '/classification_heads/'
 
     def __init__(self, device='cpu', quiet=True, classes=None, ruclip_model='ruclip-vit-base-patch16-384'):
         if classes is None:
@@ -20,11 +17,8 @@ class Classificator:
         for cl in classes:
             self.load_head(cl)
 
-        with open(f'{self.path_to_heads}id_to_label.pkl', 'rb') as f:
-            self.id_to_label = pickle.load(f)
-
-        with open(f'{self.path_to_heads}pca_all.pkl', 'rb') as f:
-            self.reducer = pickle.load(f)
+        self.id_to_label = load_id_to_label()
+        self.reducer = load_pca()
 
     def classify_products(self, texts: list[str], images: list[Image.Image], characteristics: list[str] = None):
         if characteristics is None:
@@ -43,5 +37,5 @@ class Classificator:
         return results
 
     def load_head(self, name):
-        self.heads[name] = torch.load(f'{self.path_to_heads}mlp_{name}.pt')
+        self.heads[name] = load_head(name)
         self.heads[name].eval()
