@@ -9,11 +9,11 @@ from PIL import Image
 class Classificator:
     path_to_heads = os.path.dirname(__file__) + '/classification_heads/'
 
-    def __init__(self, device='cpu', quiet=True, classes=None):
+    def __init__(self, device='cpu', quiet=True, classes=None, ruclip_model='ruclip-vit-base-patch16-384'):
         if classes is None:
             classes = ['category', 'sub_category', 'isadult']
 
-        self.clip, self.processor = ruclip.load('ruclip-vit-base-patch16-384')
+        self.clip, self.processor = ruclip.load(ruclip_model)
         self.clip_predictor = ruclip.Predictor(self.clip, self.processor, device, quiet=quiet)
 
         self.heads = {}
