@@ -8,8 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 youtokentome = "^1.0.6"
-stocaching = "^0.2.1"
-torch = "^2.3.0"
+stocaching = "^0.2.0"
 torchvision = "^0.18.0"
 
 [build-system]
