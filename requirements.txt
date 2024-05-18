@@ -1,0 +1,5 @@
+torch
+torchvision
+huggingface_hub
+youtokentome
+more_itertools

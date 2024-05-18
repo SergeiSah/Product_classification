@@ -9,14 +9,10 @@ description = "Classification of products using ruCLIP embeddings of product des
 authors = [{name="Sergei Sakhonenkov", email="sergei.sakhonenkov@gmail.com"}]
 license = "MIT"
 readme = "README.md"
+dynamic = ["dependencies"]
 
-dependencies = [
-    "torch",
-    "torchvision",
-    "huggingface_hub",
-    "youtokentome",
-    "more_itertools",
-]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools]
 packages = ["product_classificator"]
