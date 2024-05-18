@@ -28,6 +28,7 @@ setup(
     description='Classification of products using ruCLIP embeddings of product description and image',
     packages=['product_classificator'],
     package_data={'classificators': ['*.pt'], 'processors': ['*.pkl']},
+    include_package_data=True,
     long_description=readme(),
     long_description_content_type='text/markdown',
     install_requires=get_requirements(),
