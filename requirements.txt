@@ -3,4 +3,3 @@ torchvision
 huggingface_hub
 youtokentome
 more_itertools
-scikit-learn=1.4.0
