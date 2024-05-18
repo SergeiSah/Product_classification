@@ -1,22 +1,27 @@
-[tool.poetry]
-name = "product classificator"
-version = "0.0.2"
-description = "Classification of products using ruCLIP embeddings of product description and image"
-authors = ["Sergei Sakhonenkov"]
-license = "MIT"
-readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.10"
-
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[project]
+name = "product classificator"
+version = "0.0.2"
+description = "Classification of products using ruCLIP embeddings of product description and image"
+authors = [{name="Sergei Sakhonenkov", email="sergei.sakhonenkov@gmail.com"}]
+license = "MIT"
+readme = "README.md"
+
+dependencies = [
+    "torch",
+    "torchvision",
+    "huggingface_hub",
+    "youtokentome",
+    "more_itertools",
+]
+
+
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["product_classificator"]
 
 [tool.setuptools.package-data]
 product_classificator = ["*.pt", "*.pkl"]
-"product_classificator.heads" = ["data1.rst"]
+"product_classificator.heads" = ["*.pt", "*.pkl"]
