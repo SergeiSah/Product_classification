@@ -20,6 +20,14 @@ def get_version():
     return re.findall(r"__version__\s?=\s?['\"]([\d.]+)['\"]", init)[0]
 
 
+def get_package_files():
+    paths = []
+    for root, directories, filenames in os.walk('product_classificator'):
+        for filename in filenames:
+            paths.append(os.path.join('..', root, filename))
+    return paths
+
+
 setup(
     name='product_classificator',
     version=get_version(),
@@ -27,6 +35,7 @@ setup(
     author_email='sergei.sakhonenkov@gmail.com',
     description='Classification of products using ruCLIP embeddings of product description and image',
     packages=['product_classificator, product_classificator.heads'],
+    package_dir={'': 'product_classificator'},
     package_data={'heads': ['*.pt', '*.pkl']},
     include_package_data=True,
     long_description=readme(),
