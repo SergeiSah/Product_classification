@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "product classificator"
+version = "0.0.2"
+description = "Classification of products using ruCLIP embeddings of product description and image"
+authors = ["Sergei Sakhonenkov"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.setuptools.packages.find]
+where = ["."]
