@@ -10,13 +10,22 @@ from .predictor import Predictor
 
 
 class Classificator:
-    path_to_heads = os.path.dirname(__file__) + '/'
+    path_to_heads = os.path.join(os.path.dirname(__file__), 'heads/')
+    available_heads = ['category', 'sub_category', 'isadult', 'sex', 'season', 'age_restrictions', 'fragility']
 
-    def __init__(self, device='cpu', quiet=True, classes=None, model_name='ruclip-vit-base-patch16-384',
+    def __init__(self,
+                 device='cpu',
+                 quiet=True,
+                 heads=None,
+                 model_name='ruclip-vit-base-patch16-384',
                  cache_dir='/tmp/ruclip/'):
 
-        if classes is None:
-            classes = ['category', 'sub_category', 'isadult']
+        if heads is None:
+            heads = ['category', 'sub_category', 'isadult']
+        else:
+            for head in heads:
+                if head not in self.available_heads:
+                    raise ValueError(f'Unknown head: {head}, available heads: {self.available_heads}')
 
         self.clip_predictor = Predictor(
             CLIP.from_pretrained(cache_dir + model_name).eval().to(device),
@@ -26,7 +35,7 @@ class Classificator:
         )
 
         self.heads = {}
-        for cl in classes:
+        for cl in heads:
             self.load_head(cl)
 
         with open(f'{self.path_to_heads}id_to_label.pkl', 'rb') as f:
@@ -36,6 +45,19 @@ class Classificator:
             self.reducer = pickle.load(f)
 
     def classify_products(self, texts: list[str], images: list[Image.Image], characteristics: list[str] = None):
+        """
+        Классифицирует товары на основе их текстовых описаний и изображений.
+
+        Arguments:
+            texts (list[str]): Список описаний товаров.
+            images (list[Image.Image]): Список изображений товаров.
+            characteristics (list[str], optional): Список характеристик для классификации товаров. По умолчанию включает
+                                                   'category', 'sub_category', 'isadult'.
+
+        Returns:
+            dict: Словарь с результатами классификации для каждой характеристики. Ключи - названия характеристик,
+                  значения - списки соответствующих меток характеристик для каждого продукта.
+        """
         if characteristics is None:
             characteristics = self.heads.keys()
 
@@ -52,5 +74,12 @@ class Classificator:
         return results
 
     def load_head(self, name):
-        self.heads[name] = torch.load(f'{self.path_to_heads}mlp_{name}.pt')
+        """
+        Загружает MLP классификатор, обученный для предсказания заданной характеристики товара.
+
+        Arguments:
+            name (str): Название характеристики для которой будет загружен классификатор.
+        """
+        self.heads[name] = torch.load(f'{self.path_to_heads}{name}.pt')
         self.heads[name].eval()
+
