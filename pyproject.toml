@@ -16,3 +16,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools.package-data]
+product_classificator = ["*.pt", "*.pkl"]
+"product_classificator.heads" = ["data1.rst"]
