@@ -1,5 +1,4 @@
 import sys
-from .classification_heads import *
 from .classificator import Classificator
 
 
