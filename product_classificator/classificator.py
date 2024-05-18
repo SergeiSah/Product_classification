@@ -4,23 +4,23 @@ import torch
 import numpy as np
 from PIL import Image
 
-from ruclip_model import CLIP
-from processor import RuCLIPProcessor
-from predictor import Predictor
+from .ruclip_model import CLIP
+from .processor import RuCLIPProcessor
+from .predictor import Predictor
 
 
 class Classificator:
     path_to_heads = os.path.dirname(__file__) + '/'
 
-    def __init__(self, device='cpu', quiet=True, classes=None, ruclip_model='ruclip-vit-base-patch16-384',
+    def __init__(self, device='cpu', quiet=True, classes=None, model_name='ruclip-vit-base-patch16-384',
                  cache_dir='/tmp/ruclip/'):
 
         if classes is None:
             classes = ['category', 'sub_category', 'isadult']
 
         self.clip_predictor = Predictor(
-            CLIP.from_pretrained(cache_dir + ruclip_model).eval().to(device),
-            RuCLIPProcessor.from_pretrained(cache_dir + ruclip_model),
+            CLIP.from_pretrained(cache_dir + model_name).eval().to(device),
+            RuCLIPProcessor.from_pretrained(cache_dir + model_name),
             device,
             quiet=quiet
         )
