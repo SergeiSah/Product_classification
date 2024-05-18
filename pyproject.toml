@@ -1,23 +1,6 @@
-import os
-import re
-
-from setuptools import setup, find_packages
-
-
-def readme():
-    with open('README.md') as f:
-        return f.read()
-
-
-def get_requirements():
-    with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as f:
-        return f.read().splitlines()
-
-
-def get_version():
-    with open(os.path.join(os.path.dirname(__file__), 'product_classificator', '__init__.py')) as f:
-        init = f.read()
-    return re.findall(r"__version__\s?=\s?['\"]([\d.]+)['\"]", init)[0]
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 
 setup(
@@ -26,7 +9,7 @@ setup(
     author='Sergei Sakhonenkov',
     author_email='sergei.sakhonenkov@gmail.com',
     description='Classification of products using ruCLIP embeddings of product description and image',
-    packages=find_packages(),
+    packages=['product_classificator'],
     package_dir={'product_classificator': 'product_classificator'},
     package_data={'product_classificator.heads': ['*.pt', '*.pkl']},
     include_package_data=True,
