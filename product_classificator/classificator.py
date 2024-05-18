@@ -10,7 +10,7 @@ from .predictor import Predictor
 
 
 class Classificator:
-    path_to_heads = os.path.join(os.path.dirname(__file__), '/')
+    path_to_heads = os.path.join(os.path.dirname(__file__), 'heads/')
     available_heads = ['category', 'sub_category', 'isadult', 'sex', 'season', 'age_restrictions', 'fragility']
 
     def __init__(self,
