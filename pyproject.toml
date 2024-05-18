@@ -14,8 +14,3 @@ requires-python = ">=3.10"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
-
-[tool.setuptools]
-packages = ["product_classificator"]
-package-data = {"*" = ["*.pt", "*.pkl"]}
-
