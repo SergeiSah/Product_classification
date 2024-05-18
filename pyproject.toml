@@ -20,6 +20,6 @@ dependencies = [
 
 [tool.setuptools]
 packages = ["product_classificator"]
-package-dir = {"" = "product_classificator"}
+package-dir = {"product_classificator" = "product_classificator"}
 package-data = {"product_classificator.heads" = ["*.pt", "*.pkl"]}
 
