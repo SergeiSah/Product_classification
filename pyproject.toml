@@ -1,21 +1,21 @@
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "product classificator"
 version = "0.0.2"
 description = "Classification of products using ruCLIP embeddings of product description and image"
 authors = [{name="Sergei Sakhonenkov", email="sergei.sakhonenkov@gmail.com"}]
-license = "MIT"
 readme = "README.md"
 dynamic = ["dependencies"]
+
+requires-python = ">=3.10"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools]
 packages = ["product_classificator"]
-package-dir = {"product_classificator" = "product_classificator"}
-package-data = {"product_classificator.heads" = ["*.pt", "*.pkl"]}
+package-data = {"*" = ["*.pt", "*.pkl"]}
 
