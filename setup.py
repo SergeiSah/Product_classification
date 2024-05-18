@@ -34,7 +34,7 @@ setup(
     author='Sergei Sakhonenkov',
     author_email='sergei.sakhonenkov@gmail.com',
     description='Classification of products using ruCLIP embeddings of product description and image',
-    packages=['product_classificator, product_classificator.heads'],
+    packages=['product_classificator'],
     package_dir={'': 'product_classificator'},
     package_data={'heads': ['*.pt', '*.pkl']},
     include_package_data=True,
