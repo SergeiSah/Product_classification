@@ -1,1 +1,5 @@
-ruclip>=0.0.2
+torch
+torchvision
+huggingface_hub
+youtokentome
+more_itertools

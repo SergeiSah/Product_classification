@@ -2,19 +2,28 @@ import os
 import pickle
 import torch
 import numpy as np
-import ruclip
 from PIL import Image
+
+from ruclip_model import CLIP
+from processor import RuCLIPProcessor
+from predictor import Predictor
 
 
 class Classificator:
     path_to_heads = os.path.dirname(__file__) + '/'
 
-    def __init__(self, device='cpu', quiet=True, classes=None, ruclip_model='ruclip-vit-base-patch16-384'):
+    def __init__(self, device='cpu', quiet=True, classes=None, ruclip_model='ruclip-vit-base-patch16-384',
+                 cache_dir='/tmp/ruclip/'):
+
         if classes is None:
             classes = ['category', 'sub_category', 'isadult']
 
-        self.clip, self.processor = ruclip.load(ruclip_model)
-        self.clip_predictor = ruclip.Predictor(self.clip, self.processor, device, quiet=quiet)
+        self.clip_predictor = Predictor(
+            CLIP.from_pretrained(cache_dir + ruclip_model).eval().to(device),
+            RuCLIPProcessor.from_pretrained(cache_dir + ruclip_model),
+            device,
+            quiet=quiet
+        )
 
         self.heads = {}
         for cl in classes:
