@@ -18,10 +18,8 @@ dependencies = [
     "more_itertools",
 ]
 
+[tool.setuptools]
+packages = ["product_classificator"]
+package-dir = {"" = "product_classificator"}
+package-data = {"product_classificator.heads" = ["*.pt", "*.pkl"]}
 
-[tool.setuptools.packages.find]
-where = ["product_classificator"]
-
-[tool.setuptools.package-data]
-product_classificator = ["*.pt", "*.pkl"]
-"product_classificator.heads" = ["*.pt", "*.pkl"]
