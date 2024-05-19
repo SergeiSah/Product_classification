@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 
 from stocaching import SharedCache
-from image_loader import get_images, get_images_from_zip
+from .image_loader import get_images, get_images_from_zip
 
 
 class ImageDescriptionDataset(Dataset):

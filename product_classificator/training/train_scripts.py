@@ -17,7 +17,8 @@ from ..ruclip.ruclip_model import CLIP
 from .modules.cleaner import clean_dataset
 from .modules.char_processor import CharExtractor, CharReducer
 from .modules.dataset import get_dataloaders
-from .modules.train_procedure import train_mlp_classifier, plot_history
+from .modules.train_procedure import train_mlp_classifier
+from .modules.visualisation import plot_history
 
 
 def wb_preprocessing(path_to_parquets,
@@ -59,12 +60,13 @@ def wb_preprocessing(path_to_parquets,
     return train_test
 
 
-def run(path_to_images: str,
-        path_to_dfs: str,
-        task: Task,
-        ruclip_model_name='ruclip-vit-base-patch16-384',
-        save_dir='',
-        main_params: dict = None):
+def run_training_heads(path_to_images: str,
+                       path_to_dfs: str,
+                       task: Task = None,
+                       ruclip_model_name='ruclip-vit-base-patch16-384',
+                       save_dir='',
+                       main_params: dict = None,
+                       cache_dir='/tmp/ruclip/'):
 
     if main_params is None:
         main_params = {
@@ -75,7 +77,8 @@ def run(path_to_images: str,
 
     # task = Task.init(project_name='WBTECH: HorizontalML',
     #                  task_name=f'{experiment_name}')
-    logger = task.get_logger()
+    if task is not None:
+        logger = task.get_logger()
 
     # предобработка данных
     characteristics = ['category', 'sub_category', 'isadult', 'sex', 'season', 'age_restrictions', 'fragility']
@@ -83,7 +86,7 @@ def run(path_to_images: str,
 
     # загружаем модель ruCLIP
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    load(ruclip_model_name)
+    load(ruclip_model_name, cache_dir=cache_dir)
     clip = CLIP.from_pretrained(ruclip_model_name).eval().to(device)
     processor = RuCLIPProcessor.from_pretrained(ruclip_model_name)
     predictor = Predictor(clip, processor, device, quiet=True)
@@ -102,14 +105,15 @@ def run(path_to_images: str,
     # число уникальных элементов в каждой характеристике
     char_uniq = train_test[characteristics].nunique()
 
-    # запись параметров обучения и MLP классификаторов
-    task.connect({k: str(v) for k, v in main_params.items()}, name='Main parameters')
-    task.connect({
-        'in_channels': 1024,
-        'hidden_channels': [1024, 'unique chars num'],
-        'dropout': 0.2,
-        'activation_layer': 'ReLU'
-    }, name='MLP parameters')
+    if task is not None:
+        # запись параметров обучения и MLP классификаторов
+        task.connect({k: str(v) for k, v in main_params.items()}, name='Main parameters')
+        task.connect({
+            'in_channels': 1024,
+            'hidden_channels': [1024, 'unique chars num'],
+            'dropout': 0.2,
+            'activation_layer': 'ReLU'
+        }, name='MLP parameters')
 
     for char in characteristics:
         mlp = MLP(in_channels=1024, hidden_channels=[1024, char_uniq[char]], dropout=0.2,
@@ -121,17 +125,19 @@ def run(path_to_images: str,
         history, best_params = train_mlp_classifier(mlp, dataloaders[char], criterion, optimizer, char, epochs=10)
         plot_history(history, char_name=char)
 
-        for i in range(len(history['train_loss'])):
-            logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'train', value=history['train_loss'][i],
-                                 iteration=i + 1)
-            logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'valid', value=history['valid_loss'][i],
-                                 iteration=i + 1)
+        if task is not None:
+            for i in range(len(history['train_loss'])):
+                logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'train', value=history['train_loss'][i],
+                                     iteration=i + 1)
+                logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'valid', value=history['valid_loss'][i],
+                                     iteration=i + 1)
 
-            logger.report_scalar(title=f'{char}: F1-macro', series=f'train', value=history['train_f1'][i],
-                                 iteration=i + 1)
-            logger.report_scalar(title=f'{char}: F1-macro', series=f'valid', value=history['valid_f1'][i],
-                                 iteration=i + 1)
+                logger.report_scalar(title=f'{char}: F1-macro', series=f'train', value=history['train_f1'][i],
+                                     iteration=i + 1)
+                logger.report_scalar(title=f'{char}: F1-macro', series=f'valid', value=history['valid_f1'][i],
+                                     iteration=i + 1)
 
         torch.save(best_params, f'classificator_{char}.pt')
 
-    task.close()
+    if task is not None:
+        task.close()

@@ -29,6 +29,7 @@ class Classificator:
                     raise ValueError(f'Unknown head: {head}, available heads: {self.available_heads}')
 
         self.heads_ver = heads_ver
+
         self.clip_predictor = Predictor(
             CLIP.from_pretrained(cache_dir + model_name).eval().to(device),
             RuCLIPProcessor.from_pretrained(cache_dir + model_name),
