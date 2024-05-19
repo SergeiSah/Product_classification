@@ -1,6 +1,7 @@
 """
 Скрипт для обучения только MLP классификаторов, без дообучения трансформеров (text и vision) ruCLIP
 """
+import os.path
 import pickle
 import pandas as pd
 import numpy as np
@@ -19,6 +20,29 @@ from .modules.char_processor import CharExtractor, CharReducer
 from .modules.dataset import get_dataloaders
 from .modules.train_procedure import train_mlp_classifier
 from .modules.visualisation import plot_history
+
+
+class Timer:
+
+    def __init__(self):
+        self.start = None
+        self.end = None
+
+        self.last_period = None
+
+    def __enter__(self):
+        self.start = pd.Timestamp.now()
+        return self
+
+    def __exit__(self, *args):
+        self.end_timer()
+
+    def start_timer(self):
+        self.start = pd.Timestamp.now()
+
+    def end_timer(self):
+        self.end = pd.Timestamp.now()
+        self.last_period = str(self.end - self.start)
 
 
 def wb_preprocessing(path_to_parquets,
@@ -75,14 +99,20 @@ def run_training_heads(path_to_images: str,
             'classificator': MLP,
         }
 
-    # task = Task.init(project_name='WBTECH: HorizontalML',
-    #                  task_name=f'{experiment_name}')
+    timer = Timer()
+
     if task is not None:
         logger = task.get_logger()
+        logger.report_text('Start text preprocessing')
 
     # предобработка данных
-    characteristics = ['category', 'sub_category', 'isadult', 'sex', 'season', 'age_restrictions', 'fragility']
-    train_test = wb_preprocessing(path_to_dfs, characteristics)
+    with timer:
+        characteristics = ['category', 'sub_category', 'isadult', 'sex', 'season', 'age_restrictions', 'fragility']
+        train_test = wb_preprocessing(path_to_dfs, characteristics)
+
+    if task is not None:
+        logger.report_text('End text preprocessing. Time: ' + str(timer.last_period))
+        logger.report_text('ruCLIP loading')
 
     # загружаем модель ruCLIP
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -90,6 +120,9 @@ def run_training_heads(path_to_images: str,
     clip = CLIP.from_pretrained(ruclip_model_name).eval().to(device)
     processor = RuCLIPProcessor.from_pretrained(ruclip_model_name)
     predictor = Predictor(clip, processor, device, quiet=True)
+
+    if task is not None:
+        logger.report_text('Preparing Data Loaders')
 
     dataloaders = get_dataloaders(train_test, characteristics, predictor,
                                   path_to_images=path_to_images, batch_size=1024)
@@ -99,7 +132,13 @@ def run_training_heads(path_to_images: str,
     for char in characteristics:
         label_to_char[char] = dataloaders['train'].dataset.label_to_char
 
-    with open(save_dir + 'label_to_char.pkl', 'wb') as f:
+    if task is not None:
+        for char in label_to_char:
+            task.register_artifact(char, pd.DataFrame(
+                {'label': list(label_to_char[char].keys()), 'char': list(label_to_char[char].values())}
+            ))
+
+    with open(os.path.join(save_dir, 'label_to_char.pkl'), 'wb') as f:
         pickle.dump(label_to_char, f)
 
     # число уникальных элементов в каждой характеристике
@@ -115,6 +154,9 @@ def run_training_heads(path_to_images: str,
             'activation_layer': 'ReLU'
         }, name='MLP parameters')
 
+    if task is not None:
+        logger.report_text('Start training MLP classifiers')
+
     for char in characteristics:
         mlp = MLP(in_channels=1024, hidden_channels=[1024, char_uniq[char]], dropout=0.2,
                   activation_layer=torch.nn.ReLU)
@@ -122,10 +164,13 @@ def run_training_heads(path_to_images: str,
         criterion = main_params['criterion']()
         optimizer = main_params['optimizer'](mlp.parameters())
 
-        history, best_params = train_mlp_classifier(mlp, dataloaders[char], criterion, optimizer, char, epochs=10)
+        with timer:
+            history, best_params = train_mlp_classifier(mlp, dataloaders[char], criterion, optimizer, char, epochs=15)
         plot_history(history, char_name=char)
 
         if task is not None:
+            logger.report_text(f'End training MLP classifier {char}. Time: ' + str(timer.last_period))
+
             for i in range(len(history['train_loss'])):
                 logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'train', value=history['train_loss'][i],
                                      iteration=i + 1)
@@ -137,7 +182,7 @@ def run_training_heads(path_to_images: str,
                 logger.report_scalar(title=f'{char}: F1-macro', series=f'valid', value=history['valid_f1'][i],
                                      iteration=i + 1)
 
-        torch.save(best_params, f'classificator_{char}.pt')
+        torch.save(best_params, os.path.join(save_dir, f'classificator_{char}.pt'))
 
     if task is not None:
         task.close()
