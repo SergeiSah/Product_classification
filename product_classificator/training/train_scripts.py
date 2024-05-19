@@ -117,8 +117,8 @@ def run_training_heads(path_to_images: str,
     # загружаем модель ruCLIP
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     load(ruclip_model_name, cache_dir=cache_dir)
-    clip = CLIP.from_pretrained(ruclip_model_name).eval().to(device)
-    processor = RuCLIPProcessor.from_pretrained(ruclip_model_name)
+    clip = CLIP.from_pretrained(cache_dir + ruclip_model_name).eval().to(device)
+    processor = RuCLIPProcessor.from_pretrained(cache_dir + ruclip_model_name)
     predictor = Predictor(clip, processor, device, quiet=True)
 
     if task is not None:
