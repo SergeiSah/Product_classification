@@ -40,8 +40,8 @@ class Classificator:
         for cl in heads:
             self.load_head(cl)
 
-        with open(f'{self.path_to_heads}/{self.heads_ver}/id_to_label.pkl', 'rb') as f:
-            self.id_to_label = pickle.load(f)
+        with open(f'{self.path_to_heads}/{self.heads_ver}/label_to_char.pkl', 'rb') as f:
+            self.label_to_char = pickle.load(f)
 
         with open(f'{self.path_to_heads}/{self.heads_ver}/pca_all.pkl', 'rb') as f:
             self.reducer = pickle.load(f)
@@ -71,7 +71,7 @@ class Classificator:
         results = {}
         for name in characteristics:
             indexes = self.heads[name](torch.tensor(reduced_vec)).argmax(dim=1).detach().cpu().numpy()
-            results[name] = [self.id_to_label[name][index] for index in indexes]
+            results[name] = [self.label_to_char[name][index] for index in indexes]
 
         return results
 

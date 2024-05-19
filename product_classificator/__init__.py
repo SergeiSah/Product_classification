@@ -27,5 +27,5 @@ def load(name, cache_dir='/tmp/ruclip'):
         cached_download(config_file_url, cache_dir=cache_dir, force_filename=filename)
 
 
-__all__ = ['pretrained_heads', 'RUCLIP_MODELS', 'Classificator']
+__all__ = ['pretrained_heads', 'RUCLIP_MODELS', 'Classificator', 'load']
 __version__ = '0.0.2'
