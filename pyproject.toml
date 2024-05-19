@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "product-classificator"
-version = "0.0.2"
+version = "0.0.3"
 description = "Classification of products using ruCLIP embeddings of product description and image"
 authors = ["SergeiSakh <sergei.sakhonenkov@gmail.com>"]
 readme = "README.md"
@@ -10,8 +10,8 @@ youtokentome = "^1.0.6"
 stocaching = "^0.2.0"
 torchvision = "^0.18.0"
 nltk = "^3.8.1"
-pillow = "^10.2.0"
-matplotlib = "^3.9.0"
+pillow = "^9.4.0"
+matplotlib = "^3.7.1"
 tqdm = "^4.66.0"
 scikit-learn = "^1.4.2"
 
