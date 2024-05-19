@@ -4,13 +4,13 @@ import torch
 import numpy as np
 from PIL import Image
 
-from .ruclip_model import CLIP
-from .processor import RuCLIPProcessor
-from .predictor import Predictor
+from .ruclip.ruclip_model import CLIP
+from .ruclip.processor import RuCLIPProcessor
+from .ruclip.predictor import Predictor
 
 
 class Classificator:
-    path_to_heads = os.path.join(os.path.dirname(__file__), 'heads/')
+    path_to_heads = os.path.join(os.path.dirname(__file__), 'heads')
     available_heads = ['category', 'sub_category', 'isadult', 'sex', 'season', 'age_restrictions', 'fragility']
 
     def __init__(self,
@@ -18,6 +18,7 @@ class Classificator:
                  quiet=True,
                  heads=None,
                  model_name='ruclip-vit-base-patch16-384',
+                 heads_ver='wb-6_cats-pca',
                  cache_dir='/tmp/ruclip/'):
 
         if heads is None:
@@ -27,6 +28,7 @@ class Classificator:
                 if head not in self.available_heads:
                     raise ValueError(f'Unknown head: {head}, available heads: {self.available_heads}')
 
+        self.heads_ver = heads_ver
         self.clip_predictor = Predictor(
             CLIP.from_pretrained(cache_dir + model_name).eval().to(device),
             RuCLIPProcessor.from_pretrained(cache_dir + model_name),
@@ -38,10 +40,10 @@ class Classificator:
         for cl in heads:
             self.load_head(cl)
 
-        with open(f'{self.path_to_heads}id_to_label.pkl', 'rb') as f:
+        with open(f'{self.path_to_heads}/{self.heads_ver}/id_to_label.pkl', 'rb') as f:
             self.id_to_label = pickle.load(f)
 
-        with open(f'{self.path_to_heads}pca_all.pkl', 'rb') as f:
+        with open(f'{self.path_to_heads}/{self.heads_ver}/pca_all.pkl', 'rb') as f:
             self.reducer = pickle.load(f)
 
     def classify_products(self, texts: list[str], images: list[Image.Image], characteristics: list[str] = None):
@@ -80,6 +82,6 @@ class Classificator:
         Arguments:
             name (str): Название характеристики для которой будет загружен классификатор.
         """
-        self.heads[name] = torch.load(f'{self.path_to_heads}{name}.pt')
+        self.heads[name] = torch.load(f'{self.path_to_heads}/{self.heads_ver}/{name}.pt')
         self.heads[name].eval()
 
