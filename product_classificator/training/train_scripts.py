@@ -86,14 +86,11 @@ def wb_preprocessing(path_to_parquets,
 
 def run_training_heads(path_to_images: str,
                        path_to_dfs: str,
-                       task=True,
+                       task: Task = None,
                        ruclip_model_name='ruclip-vit-base-patch16-384',
                        save_dir='',
                        main_params: dict = None,
                        cache_dir='/tmp/ruclip/'):
-
-    if task is True:
-        task = Task.init('WBTECH: HorizontalML', 'Train heads inside script')
 
     if main_params is None:
         main_params = {
@@ -137,9 +134,11 @@ def run_training_heads(path_to_images: str,
 
     if task is not None:
         for char in label_to_char:
-            task.register_artifact(char, pd.DataFrame(
+            df = pd.DataFrame(
                 {'label': list(label_to_char[char].keys()), 'char': list(label_to_char[char].values())}
-            ))
+            )
+            task.register_artifact(char, df)
+            task.upload_artifact(char, df)
 
     with open(os.path.join(save_dir, 'label_to_char.pkl'), 'wb') as f:
         pickle.dump(label_to_char, f)
