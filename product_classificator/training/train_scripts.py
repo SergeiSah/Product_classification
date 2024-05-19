@@ -86,11 +86,14 @@ def wb_preprocessing(path_to_parquets,
 
 def run_training_heads(path_to_images: str,
                        path_to_dfs: str,
-                       task: Task = None,
+                       task=True,
                        ruclip_model_name='ruclip-vit-base-patch16-384',
                        save_dir='',
                        main_params: dict = None,
                        cache_dir='/tmp/ruclip/'):
+
+    if task is True:
+        task = Task.init('WBTECH: HorizontalML', 'Train heads inside script')
 
     if main_params is None:
         main_params = {
