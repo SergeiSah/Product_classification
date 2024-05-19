@@ -84,7 +84,7 @@ def wb_preprocessing(path_to_parquets,
     return train_test
 
 
-def run_training_heads(path_to_images: str,
+def run_heads_training(path_to_images: str,
                        path_to_dfs: str,
                        task: Task = None,
                        ruclip_model_name='ruclip-vit-base-patch16-384',
@@ -111,7 +111,7 @@ def run_training_heads(path_to_images: str,
         train_test = wb_preprocessing(path_to_dfs, characteristics)
 
     if task is not None:
-        logger.report_text('End text preprocessing. Time: ' + str(timer.last_period))
+        logger.report_text('End. Preprocessing time: ' + str(timer.last_period))
         logger.report_text('ruCLIP loading')
 
     # загружаем модель ruCLIP
@@ -130,7 +130,7 @@ def run_training_heads(path_to_images: str,
     # сохраняем словари для перевода меток в названия характеристик
     label_to_char = {}
     for char in characteristics:
-        label_to_char[char] = dataloaders['train'].dataset.label_to_char
+        label_to_char[char] = dataloaders[char]['train'].dataset.label_to_char
 
     if task is not None:
         for char in label_to_char:
