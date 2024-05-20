@@ -1,4 +1,4 @@
-from .train_scripts import run_heads_training
+from .train_scripts import Trainer
 
 
-__all__ = ['run_heads_training']
+__all__ = ['Trainer']
