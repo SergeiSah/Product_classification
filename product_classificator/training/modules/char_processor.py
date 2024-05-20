@@ -22,11 +22,8 @@ class CharExtractor(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        X['characteristics'] = X['characteristics'].apply(self._process_characteristics)
-        X[self.col_names] = pd.DataFrame(X['characteristics'].apply(lambda x: self._get_characteristic(x)).tolist(),
-                                         columns=self.char_names, index=X.index)
-
-        return X
+        chars = X['characteristics'].apply(lambda x: self._get_characteristic(self._process_characteristics(x)))
+        return pd.concat([X, chars], axis=1)
 
     def _get_characteristic(self, char_list: list[dict]) -> float | list[float]:
         res = [np.nan] * len(self.char_names)
@@ -50,7 +47,7 @@ class CharExtractor(BaseEstimator, TransformerMixin):
         return res
 
     @staticmethod
-    def _process_characteristics(self, text: str) -> list[dict]:
+    def _process_characteristics(text: str) -> list[dict]:
         text = text.decode('utf-8')
 
         # первый паттерн

@@ -205,8 +205,12 @@ class Trainer:
         char_extractor = CharExtractor()
         char_reducer = CharReducer()
 
-        train = char_extractor.fit_transform(train)
-        train = char_reducer.fit_transform(train)
+        self._show_info('Extracting characteristics from train dataset')
+        with self.timer:
+            train = char_extractor.fit_transform(train)
+            train = char_reducer.fit_transform(train)
+        self._show_info('End. Extraction time: ' + str(self.timer.last_period))
+
         train = train.drop('characteristics', axis=1)
 
         # предобработка характеристик в test датасете
@@ -224,7 +228,10 @@ class Trainer:
         train_test = train_test[train_test[self.characteristics].notna().any(axis=1)].reset_index(drop=True)
 
         cleaner = TextCleaner()
-        train_test['description'] = cleaner.fit_transform(train_test['description'])
+        self._show_info('Cleaning texts')
+        with self.timer:
+            train_test['description'] = cleaner.fit_transform(train_test['description'])
+        self._show_info('End. Cleaning time: ' + str(self.timer.last_period))
 
         return train_test
 
