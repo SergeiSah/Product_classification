@@ -23,7 +23,7 @@ class CharExtractor(BaseEstimator, TransformerMixin):
 
     def transform(self, X, y=None):
         chars = X['characteristics'].apply(lambda x: self._get_characteristic(self._process_characteristics(x)))
-        return pd.concat([X, chars], axis=1)
+        return pd.concat([X, pd.DataFrame(chars, columns=self.col_names, index=X.index)], axis=1)
 
     def _get_characteristic(self, char_list: list[dict]) -> float | list[float]:
         res = [np.nan] * len(self.char_names)

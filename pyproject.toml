@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "product-classificator"
-version = "0.0.3"
+version = "0.0.4"
 description = "Classification of products using ruCLIP embeddings of product description and image"
 authors = ["SergeiSakh <sergei.sakhonenkov@gmail.com>"]
 readme = "README.md"
