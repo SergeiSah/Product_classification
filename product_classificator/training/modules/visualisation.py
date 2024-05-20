@@ -19,12 +19,13 @@ def plot_history(history, char_name=None):
     axes[0].set_ylabel('Loss')
     axes[0].legend()
 
-    axes[1].plot(range(1, len(history['train_f1']) + 1), history['train_f1'], label='train')
-    if 'valid_f1' in history:
-        axes[1].plot(range(1, len(history['train_f1']) + 1), history['valid_f1'], label='valid')
-    axes[1].set_title('F1-macro score')
-    axes[1].set_xlabel('Epochs')
-    axes[1].set_ylabel('F1 score')
-    axes[1].legend()
+    if 'train_f1' in history:
+        axes[1].plot(range(1, len(history['train_f1']) + 1), history['train_f1'], label='train')
+        if 'valid_f1' in history:
+            axes[1].plot(range(1, len(history['train_f1']) + 1), history['valid_f1'], label='valid')
+        axes[1].set_title('F1-macro score')
+        axes[1].set_xlabel('Epochs')
+        axes[1].set_ylabel('F1 score')
+        axes[1].legend()
 
     plt.show()
