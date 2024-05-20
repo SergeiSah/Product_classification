@@ -74,3 +74,49 @@ def eval_mlp_classifier(mlp, test_dataloader, criterion, device='cpu'):
             loss.append(criterion(y_pred, y_batch).item())
 
     return np.mean(loss), f1_score(y_true, y_preds, average='macro')
+
+
+def train_ruclip_one_epoch(clip, dataloader, loss_img, loss_txt, optimizer, device='cpu'):
+
+    embeddings = torch.zeros((len(dataloader.dataset), 1024), dtype=torch.float32)
+    losses = []
+
+    clip.train()
+    for batch in tqdm(dataloader, desc='Batch', leave=False):
+        optimizer.zero_grad()
+
+        idxs, pixel_values, input_ids = batch
+
+        pixel_values = pixel_values.to(device)
+        input_ids = input_ids.to(device)
+
+        image_features = clip.encode_image(pixel_values)
+        text_features = clip.encode_text(input_ids)
+
+        # normalize features
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+
+        concat = torch.cat((image_features, text_features), dim=1).detach().cpu()
+        for i, idx in enumerate(idxs):
+            embeddings[idx] = concat[i]
+
+        # cosine similarity as logits
+        logit_scale = clip.logit_scale.exp()
+        logits_per_image = logit_scale * image_features @ text_features.t()
+        logits_per_text = logits_per_image.t()
+
+        labels = torch.arange(len(pixel_values), dtype=torch.long, device=device)
+
+        img_loss = loss_img(logits_per_image, labels)
+        txt_loss = loss_txt(logits_per_text, labels)
+
+        loss = (img_loss + txt_loss) / 2
+        loss.backward()
+
+        optimizer.step()
+
+        losses.append(loss.item())
+
+    clip.eval()
+    return embeddings, np.mean(losses)
