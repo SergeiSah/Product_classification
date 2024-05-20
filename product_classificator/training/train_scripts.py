@@ -15,7 +15,7 @@ from product_classificator import load
 from ..ruclip.predictor import Predictor
 from ..ruclip.processor import RuCLIPProcessor
 from ..ruclip.ruclip_model import CLIP
-from .modules.cleaner import clean_dataset
+from .modules.cleaner import clean_dataset, TextCleaner
 from .modules.char_processor import CharExtractor, CharReducer
 from .modules.dataset import get_dataloaders
 from .modules.train_procedure import train_mlp_classifier
@@ -45,146 +45,186 @@ class Timer:
         self.last_period = str(self.end - self.start)
 
 
-def wb_preprocessing(path_to_parquets,
-                     characteristics: list[str],
-                     min_products_in_sub_cat: int = 10):
+class Trainer:
 
-    if min_products_in_sub_cat <= 1:
-        raise ValueError('min_products_in_sub_cat must be > 1')
+    def __init__(self,
+                 path_to_images: str,
+                 path_to_texts: str,
+                 characteristics: list[str] = None,
+                 task: Task = None,
+                 main_params: dict = None,
+                 mlp_params: dict = None,
+                 optim_params: dict = None,
+                 min_products_in_sub_cat: int = 10,
+                 ruclip_model: str = 'ruclip-vit-base-patch16-384',
+                 cache_dir: str = '/tmp/ruclip/',
+                 heads_dir: str = 'heads/wb-6_cats',
+                 save_dir: str = ''):
 
-    # загрузка данных, первичная очистка пропусков и "плохих" записей
-    train = pd.read_parquet(path_to_parquets + 'wb_school_train.parquet')
-    train = clean_dataset(train)
+        self.task = task
 
-    test = pd.read_parquet(path_to_parquets + 'wb_school_test.parquet')
-    test = clean_dataset(test)
+        if isinstance(task, Task):
+            self.logger = task.get_logger()
 
-    # извлечение характеристик в train датасете
-    char_extractor = CharExtractor()
-    char_reducer = CharReducer()
+        self.ruclip_model = ruclip_model
 
-    train = char_extractor.fit_transform(train)
-    train = char_reducer.fit_transform(train)
-    train = train.drop('characteristics', axis=1)
+        self.path_to_images = path_to_images
+        self.path_to_dfs = path_to_texts
+        self.cache_dir = cache_dir
+        self.heads_dir = heads_dir
+        self.save_dir = save_dir
 
-    # предобработка характеристик в test датасете
-    sub_cat_freqs = test.sub_category.value_counts()
-    test['sub_category'] = test.sub_category.apply(
-        lambda x: np.nan if sub_cat_freqs[x] < min_products_in_sub_cat else x)
-
-    condition = (test.category.isin(['Товары для взрослых', 'Товары для курения']) & (~test.isadult))
-    test.loc[condition, 'isadult'] = True
-
-    # объединение датасетов
-    train_test = pd.concat([train, test], ignore_index=True).drop('title', axis=1)
-
-    # оставляем только ту часть датасета, что будет использоваться при обучении
-    train_test = train_test[train_test[characteristics].notna().any(axis=1)].reset_index(drop=True)
-
-    return train_test
-
-
-def run_heads_training(path_to_images: str,
-                       path_to_dfs: str,
-                       task: Task = None,
-                       ruclip_model_name='ruclip-vit-base-patch16-384',
-                       save_dir='',
-                       main_params: dict = None,
-                       cache_dir='/tmp/ruclip/'):
-
-    if main_params is None:
-        main_params = {
+        self.main_params = main_params or {
             'criterion': torch.nn.CrossEntropyLoss,
             'optimizer': torch.optim.Adam,
             'classificator': MLP,
+            'epochs': 15,
+            'batch_size': 1024}
+
+        self.mlp_params = mlp_params or {
+            'in_channels': 1024,
+            'hidden_channels': [1024],
+            'dropout': 0.2,
+            'activation': torch.nn.ReLU
         }
 
-    timer = Timer()
+        self.optim_params = optim_params or {}
 
-    if task is not None:
-        logger = task.get_logger()
-        logger.report_text('Start text preprocessing')
+        if min_products_in_sub_cat <= 1:
+            raise ValueError('min_products_in_sub_cat must be > 1')
+        self.min_products_in_sub_cat = min_products_in_sub_cat
+        self.characteristics = characteristics or [
+            'category', 'sub_category', 'isadult', 'sex', 'season', 'age_restrictions', 'fragility']
 
-    # предобработка данных
-    with timer:
-        characteristics = ['category', 'sub_category', 'isadult', 'sex', 'season', 'age_restrictions', 'fragility']
-        train_test = wb_preprocessing(path_to_dfs, characteristics)
+        self.wb_train_df = 'wb_school_train.parquet'
+        self.wb_test_df = 'wb_school_test.parquet'
 
-    if task is not None:
-        logger.report_text('End. Preprocessing time: ' + str(timer.last_period))
-        logger.report_text('ruCLIP loading')
+        self.timer = Timer()
 
-    # загружаем модель ruCLIP
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    load(ruclip_model_name, cache_dir=cache_dir)
-    clip = CLIP.from_pretrained(cache_dir + ruclip_model_name).eval().to(device)
-    processor = RuCLIPProcessor.from_pretrained(cache_dir + ruclip_model_name)
-    predictor = Predictor(clip, processor, device, quiet=True)
+    def _show_info(self, text: str):
+        if self.task is not None:
+            self.logger.report_text(text)
+        else:
+            print(text)
 
-    if task is not None:
-        logger.report_text('Preparing Data Loaders')
+    def _log_history(self, char: str, history: dict[str, list[float]]):
+        for i in range(len(history['train_loss'])):
+            self.logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'train',
+                                      value=history['train_loss'][i],
+                                      iteration=i + 1)
+            self.logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'valid',
+                                      value=history['valid_loss'][i],
+                                      iteration=i + 1)
 
-    dataloaders = get_dataloaders(train_test, characteristics, predictor,
-                                  path_to_images=path_to_images, batch_size=1024)
+            self.logger.report_scalar(title=f'{char}: F1-macro', series=f'train', value=history['train_f1'][i],
+                                      iteration=i + 1)
+            self.logger.report_scalar(title=f'{char}: F1-macro', series=f'valid', value=history['valid_f1'][i],
+                                      iteration=i + 1)
 
-    # сохраняем словари для перевода меток в названия характеристик
-    label_to_char = {}
-    for char in characteristics:
-        label_to_char[char] = dataloaders[char]['train'].dataset.label_to_char
+    def run(self) -> None:
 
-    if task is not None:
-        for char in label_to_char:
-            df = pd.DataFrame(
-                {'label': list(label_to_char[char].keys()), 'char': list(label_to_char[char].values())}
-            )
-            task.register_artifact(char, df)
-            task.upload_artifact(char, df)
+        timer = Timer()
 
-    with open(os.path.join(save_dir, 'label_to_char.pkl'), 'wb') as f:
-        pickle.dump(label_to_char, f)
-
-    # число уникальных элементов в каждой характеристике
-    char_uniq = train_test[characteristics].nunique()
-
-    if task is not None:
-        # запись параметров обучения и MLP классификаторов
-        task.connect({k: str(v) for k, v in main_params.items()}, name='Main parameters')
-        task.connect({
-            'in_channels': 1024,
-            'hidden_channels': [1024, 'unique chars num'],
-            'dropout': 0.2,
-            'activation_layer': 'ReLU'
-        }, name='MLP parameters')
-
-    if task is not None:
-        logger.report_text('Start training MLP classifiers')
-
-    for char in characteristics:
-        mlp = MLP(in_channels=1024, hidden_channels=[1024, char_uniq[char]], dropout=0.2,
-                  activation_layer=torch.nn.ReLU)
-
-        criterion = main_params['criterion']()
-        optimizer = main_params['optimizer'](mlp.parameters())
-
+        self._show_info('Start text preprocessing')
         with timer:
-            history, best_params = train_mlp_classifier(mlp, dataloaders[char], criterion, optimizer, char, epochs=15)
-        plot_history(history, char_name=char)
+            train_test = self.loading_texts()
+            train_test = self.preprocessing_texts(train_test)
+        self._show_info('End. Preprocessing time: ' + str(timer.last_period))
 
-        if task is not None:
-            logger.report_text(f'End training MLP classifier {char}. Time: ' + str(timer.last_period))
+        self._show_info('Start ruCLIP loading')
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        load(self.ruclip_model, cache_dir=self.cache_dir)
+        clip = CLIP.from_pretrained(self.cache_dir + self.ruclip_model).eval().to(device)
+        processor = RuCLIPProcessor.from_pretrained(self.cache_dir + self.ruclip_model)
+        predictor = Predictor(clip, processor, device, quiet=True)
 
-            for i in range(len(history['train_loss'])):
-                logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'train', value=history['train_loss'][i],
-                                     iteration=i + 1)
-                logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'valid', value=history['valid_loss'][i],
-                                     iteration=i + 1)
+        self._show_info('Preparing Data Loaders')
+        dataloaders = get_dataloaders(train_test, self.characteristics, predictor,
+                                      path_to_images=self.path_to_images, batch_size=self.main_params['batch_size'])
 
-                logger.report_scalar(title=f'{char}: F1-macro', series=f'train', value=history['train_f1'][i],
-                                     iteration=i + 1)
-                logger.report_scalar(title=f'{char}: F1-macro', series=f'valid', value=history['valid_f1'][i],
-                                     iteration=i + 1)
+        self._show_info('Saving a dict for transformation labels to characteristic values')
+        label_to_char = {}
+        for char in self.characteristics:
+            label_to_char[char] = dataloaders[char]['train'].dataset.label_to_char
 
-        torch.save(best_params, os.path.join(save_dir, f'classificator_{char}.pt'))
+        if self.task is not None:
+            for char in label_to_char:
+                df = pd.DataFrame(
+                    {'label': list(label_to_char[char].keys()), char: list(label_to_char[char].values())}
+                )
+                self.task.register_artifact(char, df)
 
-    if task is not None:
-        task.close()
+        with open(os.path.join(self.save_dir, 'label_to_char.pkl'), 'wb') as f:
+            pickle.dump(label_to_char, f)
+
+        char_uniq = train_test[self.characteristics].nunique()
+
+        if self.task is not None:
+            self.task.register_artifact('Num of unique characteristics', char_uniq)
+            self.task.connect({k: str(v) for k, v in self.main_params.items()},
+                              name='Heads training parameters')
+
+        self._show_info('Start training MLP classifiers')
+        for char in self.characteristics:
+            mlp = MLP(in_channels=self.mlp_params['in_channels'],
+                      hidden_channels=[*self.mlp_params['hidden_channels'], char_uniq[char]],
+                      dropout=self.mlp_params['dropout'],
+                      activation_layer=self.mlp_params['activation'])
+
+            criterion = self.main_params['criterion']()
+            optimizer = self.main_params['optimizer'](mlp.parameters(), **self.optim_params)
+
+            with timer:
+                history, best_params = train_mlp_classifier(mlp, dataloaders[char], criterion, optimizer, char,
+                                                            epochs=self.main_params['epochs'])
+            plot_history(history, char_name=char)
+
+            self._show_info(f'End training MLP classifier {char}. Time: ' + str(timer.last_period))
+            if self.task is not None:
+                self._log_history(char, history)
+
+            torch.save(best_params, os.path.join(self.save_dir, self.heads_dir, f'{char}.pt'))
+
+        if self.task is not None:
+            self.task.close()
+
+    def loading_texts(self) -> pd.DataFrame:
+        train = pd.read_parquet(self.path_to_dfs + self.wb_train_df)
+        train = clean_dataset(train)
+
+        test = pd.read_parquet(self.path_to_dfs + self.wb_test_df)
+        test = clean_dataset(test)
+
+        return pd.concat([train, test], ignore_index=True).reset_index(drop=True)
+
+    def preprocessing_texts(self, df: pd.DataFrame) -> pd.DataFrame:
+        train = df[df.characteristics.notna()]
+        test = df[df.characteristics.isna()]
+
+        # извлечение характеристик в train датасете
+        char_extractor = CharExtractor()
+        char_reducer = CharReducer()
+
+        train = char_extractor.fit_transform(train)
+        train = char_reducer.fit_transform(train)
+        train = train.drop('characteristics', axis=1)
+
+        # предобработка характеристик в test датасете
+        sub_cat_freqs = test.sub_category.value_counts()
+        test['sub_category'] = test.sub_category.apply(
+            lambda x: np.nan if sub_cat_freqs[x] < self.min_products_in_sub_cat else x)
+
+        condition = (test.category.isin(['Товары для взрослых', 'Товары для курения']) & (~test.isadult))
+        test.loc[condition, 'isadult'] = True
+
+        # объединение датасетов
+        train_test = pd.concat([train, test], ignore_index=True).drop('title', axis=1)
+
+        # оставляем только ту часть датасета, что будет использоваться при обучении
+        train_test = train_test[train_test[self.characteristics].notna().any(axis=1)].reset_index(drop=True)
+
+        cleaner = TextCleaner()
+        train_test['description'] = cleaner.fit_transform(train_test['description'])
+
+        return train_test
+

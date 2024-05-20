@@ -49,6 +49,7 @@ class CharExtractor(BaseEstimator, TransformerMixin):
 
         return res
 
+    @staticmethod
     def _process_characteristics(self, text: str) -> list[dict]:
         text = text.decode('utf-8')
 
