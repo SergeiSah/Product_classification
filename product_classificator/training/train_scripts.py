@@ -231,6 +231,7 @@ class Trainer:
         self._show_info('Cleaning texts')
         with self.timer:
             train_test['description'] = cleaner.fit_transform(train_test['description'])
+            self.task.register_artifact('Prepared data', train_test)
         self._show_info('End. Cleaning time: ' + str(self.timer.last_period))
 
         return train_test

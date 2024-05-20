@@ -68,7 +68,7 @@ class TextCleaner(BaseEstimator, TransformerMixin):
 
     def transform(self, texts):
         if isinstance(texts, pd.Series):
-            return texts.progress_apply(self._process_text)
+            return texts.apply(self._process_text)
 
         return [self._process_text(text) for text in texts]
 
