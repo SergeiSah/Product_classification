@@ -157,7 +157,7 @@ class Trainer:
         with open(os.path.join(self.save_dir, 'label_to_char.pkl'), 'wb') as f:
             pickle.dump(label_to_char, f)
 
-        char_uniq = train_test[self.characteristics].nunique()
+        char_uniq = train_test[self.characteristics].nunique().to_frame()
 
         if self.task is not None:
             self.task.register_artifact('Num of unique characteristics', char_uniq)
@@ -231,7 +231,8 @@ class Trainer:
         self._show_info('Cleaning texts')
         with self.timer:
             train_test['description'] = cleaner.fit_transform(train_test['description'])
-            self.task.register_artifact('Prepared data', train_test)
+            if self.task is not None:
+                self.task.register_artifact('Prepared data', train_test)
         self._show_info('End. Cleaning time: ' + str(self.timer.last_period))
 
         return train_test
