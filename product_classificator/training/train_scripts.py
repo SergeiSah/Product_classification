@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from torchvision.ops import MLP
 
+from tqdm import tqdm
 from clearml import Task
 
 from product_classificator import load
@@ -291,7 +292,8 @@ class Trainer:
         mlp_history = {char: {'train_loss': [], 'valid_loss': [], 'train_f1': [], 'valid_f1': []}
                        for char in self.characteristics}
 
-        for epoch in range(1, self.heads_train_params['epochs'] + 1):
+        for epoch in tqdm(range(1, self.heads_train_params['epochs'] + 1),
+                          desc='Train ruclip. Epochs', leave=False):
             embeddings, loss = train_ruclip_one_epoch(clip, dataloader, loss_img, loss_txt, optimizer, device)
             ruclip_loss.append(loss)
 
