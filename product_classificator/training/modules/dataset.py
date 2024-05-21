@@ -10,68 +10,61 @@ from stocaching import SharedCache
 from .image_loader import get_images, get_images_from_zip
 
 
+class Cache:
+
+    def __init__(self, path_to_cache_dir: str):
+        self.path_to_cache_dir = path_to_cache_dir
+        self.check_dir()
+
+    def check_dir(self):
+        if not os.path.exists(self.path_to_cache_dir):
+            os.makedirs(self.path_to_cache_dir)
+
+    def get(self, image_name: str, key: str) -> torch.Tensor | torch.LongTensor | None:
+        try:
+            image_name = image_name.split('.')[0]
+            np_value = np.load(os.path.join(self.path_to_cache_dir, f'{image_name}_{key}.npy'))
+            return torch.from_numpy(np_value)
+        except FileNotFoundError:
+            return None
+
+    def add(self, image_name: str, value: torch.Tensor | torch.LongTensor, key: str) -> None:
+        image_name = image_name.split('.')[0]
+        np.save(os.path.join(self.path_to_cache_dir, f'{image_name}_{key}.npy'), value.numpy())
+
+    def clear_cache(self):
+        self.check_dir()
+        for file in os.listdir(self.path_to_cache_dir):
+            os.remove(os.path.join(self.path_to_cache_dir, file))
+
+        os.removedirs(self.path_to_cache_dir)
+
+
 class DatasetForProcessor(Dataset):
-    __cache_img = None
-    __cache_txt = None
+    __cache = None
     __idx_to_image = None
     __image_to_idx = None
 
     @classmethod
-    def set_cache(cls, idx_to_image: dict[int, str], img_size: int = 384):
-        """
-        Устанавливает кэш для класса ImageDescriptionDataset. Кэш хранит тензоры предобработанных изображений и
-        токены текстов. Доступ к элементам кэша осуществляется по индексу товара. Для корректной работы необходимо
-        объединить все характеристики в один датасет, обновить индексы и передать функции словарь
-        {индекс: название_изображения}
-
-        Параметры:
-            idx_to_image (dict): Словарь, который сопоставляет индексы в датасете товаров с именами изображений.
-
-        Возвращает:
-            None
-        """
+    def set_cache(cls, idx_to_image: dict[int, str], path_to_cache_dir: str):
         cls.__idx_to_image = idx_to_image
         cls.__image_to_idx = {v: k for k, v in cls.__idx_to_image.items()}
 
-        cls.__cache_img = SharedCache(
-            size_limit_gib=64,
-            dataset_len=len(idx_to_image),
-            data_dims=(3, img_size, img_size),
-            dtype=torch.float32
-        )
-
-        cls.__cache_txt = SharedCache(
-            size_limit_gib=32,
-            dataset_len=len(idx_to_image),
-            data_dims=(77,),
-            dtype=torch.int64
-        )
+        cls.__cache = Cache(path_to_cache_dir)
 
     @classmethod
     def clear_cache(cls):
-        """
-        Очищает кэш для ImageDescriptionDataset.
-        """
-        cls.__cache_img = None
-        cls.__cache_txt = None
-        cls.__idx_to_image = None
-        cls.__image_to_idx = None
+        del cls.__cache
 
     def __init__(self,
                  image_names: list[str],
                  descriptions: list[str],
                  processor,
-                 path_to_images: str,
-                 chars: list[str] = None):
+                 path_to_images: str):
 
         self.image_names = image_names
         self.descriptions = descriptions
         self.files_in_zip = is_files_in_zip(path_to_images)
-
-        self.chars = chars
-        if self.chars is not None:
-            self.char_to_label = {char: idx for idx, char in enumerate(sorted(set(chars)))}
-            self.label_to_char = {idx: char for char, idx in self.char_to_label.items()}
 
         self.processor = processor
         self.path_to_images = path_to_images
@@ -83,9 +76,6 @@ class DatasetForProcessor(Dataset):
         img_tensors = torch.Tensor()
         txt_tokens = torch.LongTensor()
 
-        if self.chars is not None:
-            chars_all = torch.LongTensor()
-
         not_cached_idx = []  # индексы некэшированных элементов
 
         if isinstance(idx, slice):
@@ -95,9 +85,9 @@ class DatasetForProcessor(Dataset):
             idxs = [idx]
 
         for i in idxs:
-            if self.__cache_img is not None:
-                x_img = self.__cache_img.get_slot(self.__image_to_idx[self.image_names[i]])
-                x_txt = self.__cache_txt.get_slot(self.__image_to_idx[self.image_names[i]])
+            if self.__cache is not None:
+                x_img = self.__cache.get(self.image_names[i], 'img')
+                x_txt = self.__cache.get(self.image_names[i], 'txt')
             else:
                 x_img, x_txt = None, None
 
@@ -106,9 +96,6 @@ class DatasetForProcessor(Dataset):
             else:
                 img_tensors = torch.cat([img_tensors, x_img])
                 txt_tokens = torch.cat([txt_tokens, x_txt])
-
-            if self.chars is not None:
-                chars_all = torch.cat([chars_all, torch.LongTensor([self.char_to_label[self.chars[i]]])])
 
         # если есть некэшированные элементы, рассчитать эмбеддинги
         if len(not_cached_idx) > 0:
@@ -129,16 +116,13 @@ class DatasetForProcessor(Dataset):
             tokens = res['input_ids']
 
             # сохранение преобразованных картинок и текстов в кэш
-            if self.__cache_img is not None:
+            if self.__cache is not None:
                 for i, idx in enumerate(not_cached_idx):
-                    self.__cache_img.set_slot(self.__image_to_idx[self.image_names[idx]], tensors[i])
-                    self.__cache_txt.set_slot(self.__image_to_idx[self.image_names[idx]], tokens[i])
+                    self.__cache.add(self.image_names[idx], tensors[i], 'img')
+                    self.__cache.add(self.image_names[idx], tokens[i], 'txt')
 
             img_tensors = torch.cat([img_tensors, tensors]).squeeze()
             txt_tokens = torch.cat([txt_tokens, tokens]).squeeze()
-
-        if self.chars is not None:
-            return img_tensors, txt_tokens, chars_all
 
         return idx, img_tensors, txt_tokens
 
@@ -150,18 +134,6 @@ class DatasetForPredictor(Dataset):
 
     @classmethod
     def set_cache(cls, idx_to_image):
-        """
-        Устанавливает кэш для класса ImageDescriptionDataset. Кэш хранит конкатенированные эмбеддинги изображений
-        и текстов. Доступ к элементам кэша осуществляется по индексу товара. Для корректной работы необходимо
-        объединить все характеристики в один датасет, обновить индексы и передать функции словарь
-        {индекс: название_изображения}
-
-        Параметры:
-            idx_to_image (dict): Словарь, который сопоставляет индексы в датасете товаров с именами изображений.
-
-        Возвращает:
-            None
-        """
         cls.__idx_to_image = idx_to_image
         cls.__image_to_idx = {v: k for k, v in cls.__idx_to_image.items()}
 
@@ -174,9 +146,6 @@ class DatasetForPredictor(Dataset):
 
     @classmethod
     def clear_cache(cls):
-        """
-        Очищает кэш для ImageDescriptionDataset.
-        """
         cls.__cache = None
         cls.__idx_to_image = None
         cls.__image_to_idx = None
@@ -186,9 +155,9 @@ class DatasetForPredictor(Dataset):
         if image_names is None:
             for i in range(len(embeddings)):
                 cls.__cache.set_slot(i, embeddings[i])
-
-        for i, image_name in enumerate(image_names):
-            cls.__cache.set_slot(cls.__image_to_idx[image_name], embeddings[i])
+        else:
+            for i, image_name in enumerate(image_names):
+                cls.__cache.set_slot(cls.__image_to_idx[image_name], embeddings[i])
 
     def __init__(self,
                  image_names: list[str],
@@ -348,6 +317,7 @@ def get_char_dataloaders(df: pd.DataFrame,
 def get_ruclip_dataloader(df: pd.DataFrame,
                           processor,
                           path_to_images: str,
+                          path_to_cache_dir: str,
                           batch_size: int = 2048) -> DataLoader:
 
     check_df(df)
@@ -356,7 +326,7 @@ def get_ruclip_dataloader(df: pd.DataFrame,
     descriptions = df['description'].values
     idx_to_image = {idx: image for idx, image in enumerate(image_names)}
 
-    DatasetForProcessor.set_cache(idx_to_image)
+    DatasetForProcessor.set_cache(idx_to_image, path_to_cache_dir)
 
     return DataLoader(DatasetForProcessor(image_names, descriptions, processor, path_to_images),
                       batch_size=batch_size, shuffle=True)
