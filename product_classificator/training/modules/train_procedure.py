@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from sklearn.metrics import f1_score
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 
 def train_mlp_classifier(mlp, dataloaders, criterion, optimizer, param_name, epochs=12, device='cpu'):
@@ -82,7 +82,7 @@ def train_ruclip_one_epoch(clip, dataloader, loss_img, loss_txt, optimizer, devi
     losses = []
 
     clip.train()
-    for batch in tqdm(dataloader, desc='Batch', leave=False):
+    for batch in tqdm(dataloader, desc='Batch', leave=False, total=len(dataloader)):
         optimizer.zero_grad()
 
         idxs, pixel_values, input_ids = batch
