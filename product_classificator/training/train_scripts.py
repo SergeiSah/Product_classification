@@ -75,7 +75,7 @@ class Trainer:
         self.ruclip_train_params = ruclip_train_params or {
             'img_criterion': torch.nn.CrossEntropyLoss,
             'txt_criterion': torch.nn.CrossEntropyLoss,
-            'epochs': 8,
+            'epochs': 5,
             'batch_size': 4096,
             'optimizer': torch.optim.Adam,
             'optimizer_params': {
