@@ -11,7 +11,7 @@ def train_mlp_classifier(mlp, dataloaders, criterion, optimizer, param_name, epo
     history = {'train_loss': [], 'valid_loss': [], 'train_f1': [], 'valid_f1': []}
     best_params = mlp.state_dict()
 
-    for epoch in tqdm(range(1, epochs + 1), desc=f'Train {param_name} classificator. Epochs', leave=False):
+    for epoch in tqdm(range(1, epochs + 1), desc=f'Train {param_name} classificator. Epochs'):
         mlp.train()
 
         epoch_train_loss = []
@@ -87,8 +87,8 @@ def train_ruclip_one_epoch(clip, dataloader, loss_img, loss_txt, optimizer, devi
 
         idxs, pixel_values, input_ids = batch
 
-        pixel_values = pixel_values.to(device)
-        input_ids = input_ids.to(device)
+        pixel_values = pixel_values.squeeze().to(device)
+        input_ids = input_ids.squeeze().to(device)
 
         image_features = clip.encode_image(pixel_values)
         text_features = clip.encode_text(input_ids)
