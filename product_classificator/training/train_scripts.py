@@ -180,10 +180,10 @@ class Trainer:
             os.makedirs(self.heads_dir)
 
     def _loading_texts(self) -> pd.DataFrame:
-        train = pd.read_parquet(self.path_to_dfs + self.wb_train_df)
+        train = pd.read_parquet(os.path.join(self.path_to_dfs, self.wb_train_df))
         train = clean_dataset(train)
 
-        test = pd.read_parquet(self.path_to_dfs + self.wb_test_df)
+        test = pd.read_parquet(os.path.join(self.path_to_dfs, self.wb_test_df))
         test = clean_dataset(test)
 
         return pd.concat([train, test], ignore_index=True).reset_index(drop=True)
