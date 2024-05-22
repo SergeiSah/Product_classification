@@ -410,7 +410,7 @@ class Trainer:
         for char in mlp_history:
             fig = plot_history(mlp_history[char], f'{char}')
             fig.savefig(os.path.join(self.experiment_dir,  f'{char}_history.png'))
-            self._log_history(char, mlp_history[char])
+            self._log_history(char, mlp_history[char], add_info=f' (ruclip train)')
 
         torch.save(best_params, os.path.join(self.experiment_dir,  f'trained_{self.ruclip_model}.pt'))
         self._end_experiment()
