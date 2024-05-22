@@ -60,8 +60,12 @@ class DatasetForProcessor(Dataset):
                  image_names: list[str],
                  descriptions: list[str],
                  processor,
-                 path_to_images: str):
+                 path_to_images: str,
+                 img_size: int,
+                 tokens_num: int):
 
+        self.img_size = img_size
+        self.tokens_num = tokens_num
         self.image_names = image_names
         self.descriptions = descriptions
         self.files_in_zip = is_files_in_zip(path_to_images)
@@ -94,8 +98,8 @@ class DatasetForProcessor(Dataset):
             if x_img is None:
                 not_cached_idx.append(i)
             else:
-                img_tensors = torch.cat([img_tensors, x_img])
-                txt_tokens = torch.cat([txt_tokens, x_txt])
+                img_tensors = torch.cat([img_tensors, x_img.view(1, 3, self.img_size, self.img_size)])
+                txt_tokens = torch.cat([txt_tokens, x_txt.view(1, self.tokens_num)])
 
         # если есть некэшированные элементы, рассчитать эмбеддинги
         if len(not_cached_idx) > 0:
@@ -121,32 +125,35 @@ class DatasetForProcessor(Dataset):
                     self.__cache.add(self.image_names[idx], tensors[i], 'img')
                     self.__cache.add(self.image_names[idx], tokens[i], 'txt')
 
-            img_tensors = torch.cat([img_tensors, tensors]).squeeze()
-            txt_tokens = torch.cat([txt_tokens, tokens]).squeeze()
+            img_tensors = torch.cat([img_tensors, tensors]).view(-1, 3, self.img_size, self.img_size)
+            txt_tokens = torch.cat([txt_tokens, tokens]).view(-1, self.tokens_num)
 
         return idx, img_tensors, txt_tokens
 
 
 class DatasetForPredictor(Dataset):
     __cache = None
+    __cache_embed = None
     __idx_to_image = None
     __image_to_idx = None
 
     @classmethod
-    def set_cache(cls, idx_to_image):
+    def set_cache(cls, idx_to_image: dict[int, str], path_to_cache_dir: str):
         cls.__idx_to_image = idx_to_image
         cls.__image_to_idx = {v: k for k, v in cls.__idx_to_image.items()}
 
-        cls.__cache = SharedCache(
+        cls.__cache_embed = SharedCache(
             size_limit_gib=32,
             dataset_len=len(idx_to_image),
             data_dims=(1024,),
             dtype=torch.float32
         )
 
+        cls.__cache = Cache(path_to_cache_dir)
+
     @classmethod
     def clear_cache(cls):
-        cls.__cache = None
+        cls.__cache_embed = None
         cls.__idx_to_image = None
         cls.__image_to_idx = None
 
@@ -154,17 +161,19 @@ class DatasetForPredictor(Dataset):
     def add_cache(cls, embeddings, image_names: list[str] = None):
         if image_names is None:
             for i in range(len(embeddings)):
-                cls.__cache.set_slot(i, embeddings[i])
+                cls.__cache_embed.set_slot(i, embeddings[i])
         else:
             for i, image_name in enumerate(image_names):
-                cls.__cache.set_slot(cls.__image_to_idx[image_name], embeddings[i])
+                cls.__cache_embed.set_slot(cls.__image_to_idx[image_name], embeddings[i])
 
     def __init__(self,
                  image_names: list[str],
                  descriptions: list[str],
                  chars: list[str],
                  predictor,
-                 path_to_images: str):
+                 path_to_images: str,
+                 img_size: int,
+                 tokens_num: int):
 
         self.image_names = image_names
         self.descriptions = descriptions
@@ -176,6 +185,9 @@ class DatasetForPredictor(Dataset):
 
         self.predictor = predictor
         self.path_to_images = path_to_images
+
+        self.img_size = img_size
+        self.tokens_num = tokens_num
 
     def __len__(self):
         return len(self.image_names)
@@ -194,15 +206,15 @@ class DatasetForPredictor(Dataset):
             indexes = [idx]
 
         for i in indexes:
-            if self.__cache is not None:
-                x = self.__cache.get_slot(self.__image_to_idx[self.image_names[i]])
+            if self.__cache_embed is not None:
+                x = self.__cache_embed.get_slot(self.__image_to_idx[self.image_names[i]])
             else:
                 x = None
 
             if x is None:
                 not_cached_idx.append(i)
             else:
-                concat_all = torch.cat([concat_all, x])
+                concat_all = torch.cat([concat_all, x.view(-1, 512 * 2)])
                 chars_all = torch.cat([chars_all, torch.LongTensor([self.char_to_label[self.chars[i]]])])
 
         # если есть некэшированные элементы, рассчитать эмбеддинги
@@ -221,18 +233,43 @@ class DatasetForPredictor(Dataset):
             else:
                 images = get_images(image_names, self.path_to_images)
 
-            img_vecs = self.predictor.get_image_latents(images).detach().cpu()
-            text_vecs = self.predictor.get_text_latents(descriptions).detach().cpu()
+            txt_tokens = []
+            img_tensors = []
+            for i, image_name in enumerate(image_names):
+                if self.__cache is not None:
+                    img = self.__cache.get(image_name, 'img')
+                    txt = self.__cache.get(image_name, 'txt')
+                else:
+                    img, txt = None, None
 
-            concat = torch.cat([img_vecs, text_vecs], dim=1)
+                if img is None:
+                    img = self.predictor.clip_processor(images=images[i:i+1])['pixel_values']
+                    if self.__cache is not None:
+                        self.__cache.add(image_name, img, 'img')
+
+                if txt is None:
+                    txt = self.predictor.clip_processor(text=descriptions[i:i+1])['input_ids']
+                    if self.__cache is not None:
+                        self.__cache.add(image_name, txt, 'txt')
+
+                img_tensors.append(img.view(1, 3, self.img_size, self.img_size))
+                txt_tokens.append(txt.view(1, self.tokens_num))
+
+            img_tensors = torch.cat(img_tensors)
+            txt_tokens = torch.cat(txt_tokens)
+
+            img_vecs = self.predictor.get_image_latents_(img_tensors.to(self.predictor.device)).detach().cpu()
+            text_vecs = self.predictor.get_text_latents_(txt_tokens.to(self.predictor.device)).detach().cpu()
+
+            concat = torch.cat([img_vecs, text_vecs], dim=1).view(-1, 512 * 2)
             chars = torch.LongTensor([self.char_to_label[char] for char in chars])
 
             # сохранение эмбеддингов в кэш
-            if self.__cache is not None:
+            if self.__cache_embed is not None:
                 for i, idx in enumerate(not_cached_idx):
-                    self.__cache.set_slot(self.__image_to_idx[self.image_names[idx]], concat[i])
+                    self.__cache_embed.set_slot(self.__image_to_idx[self.image_names[idx]], concat[i])
 
-            concat_all = torch.cat([concat_all, concat]).squeeze()
+            concat_all = torch.cat([concat_all, concat])
             chars_all = torch.cat([chars_all, chars])
 
         return concat_all, chars_all
@@ -264,30 +301,16 @@ def get_char_dataloaders(df: pd.DataFrame,
                          chars: list,
                          predictor,
                          path_to_images: str,
+                         path_to_cache_dir: str,
+                         img_size: int,
+                         tokens_num: int,
                          embeddings: torch.Tensor = None,
                          batch_size: int = 1024) -> dict:
-    """
-    Принимает DataFrame, список характеристик, объект predictor и необязательный размер пакета,
-    и возвращает словарь даталоадеров для каждой характеристики.
 
-    Arguments:
-        df (pd.DataFrame): данные с указанием номера картинки товара (nm), его описания (description) и
-                           характеристик.
-        chars (list): Список характеристик, по которым нужно разделить данные.
-        predictor: Объект Predictor, используемый для кодирования картинок и текста.
-        path_to_images (str): Путь к директории с изображениями или путь к zip-архиву с изображениями.
-        embeddings (torch.Tensor, optional): Тензор с рассчитанными и конкатенированными эмбеддингами изображений и
-                                             описаний. По умолчанию None.
-        batch_size (int, optional): Размер каждого пакета. По умолчанию 1024.
-
-    Returns:
-        dict: Словарь даталоадеров для каждой характеристики. Для каждой характеристики имеется
-              два даталоадера: train и valid.
-    """
     check_df(df, chars)
 
     idx_to_image = {idx: image for idx, image in enumerate(df['nm'].values)}
-    DatasetForPredictor.set_cache(idx_to_image)
+    DatasetForPredictor.set_cache(idx_to_image, path_to_cache_dir)
 
     if embeddings is not None:
         DatasetForPredictor.add_cache(embeddings)
@@ -308,7 +331,7 @@ def get_char_dataloaders(df: pd.DataFrame,
         dataloaders[char] = {}
         for idx, name in zip([idx_train, idx_valid], ['train', 'valid']):
             ds = DatasetForPredictor(image_names[idx], descriptions[idx], char_dataset[char].values[idx],
-                                     predictor, path_to_images)
+                                     predictor, path_to_images, img_size, tokens_num)
             dataloaders[char][name] = DataLoader(ds, batch_size=batch_size, shuffle=True)
 
     return dataloaders
@@ -318,6 +341,8 @@ def get_ruclip_dataloader(df: pd.DataFrame,
                           processor,
                           path_to_images: str,
                           path_to_cache_dir: str,
+                          img_size: int,
+                          tokens_num: int,
                           batch_size: int = 2048) -> DataLoader:
 
     check_df(df)
@@ -328,6 +353,6 @@ def get_ruclip_dataloader(df: pd.DataFrame,
 
     DatasetForProcessor.set_cache(idx_to_image, path_to_cache_dir)
 
-    return DataLoader(DatasetForProcessor(image_names, descriptions, processor, path_to_images),
+    return DataLoader(DatasetForProcessor(image_names, descriptions, processor, path_to_images, img_size, tokens_num),
                       batch_size=batch_size, shuffle=True)
 
