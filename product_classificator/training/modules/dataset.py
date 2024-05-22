@@ -1,4 +1,5 @@
 import os
+import gzip
 import pandas as pd
 import numpy as np
 
@@ -23,14 +24,24 @@ class Cache:
     def get(self, image_name: str, key: str) -> torch.Tensor | torch.LongTensor | None:
         try:
             image_name = image_name.split('.')[0]
-            np_value = np.load(os.path.join(self.path_to_cache_dir, f'{image_name}_{key}.npy'))
+            if key == 'txt':
+                np_value = np.load(os.path.join(self.path_to_cache_dir, f'{image_name}_{key}.npy'))
+            else:
+                with gzip.open(os.path.join(self.path_to_cache_dir, f'{image_name}_{key}.gz'), 'rb') as f:
+                    np_value = np.load(f)
+
             return torch.from_numpy(np_value)
         except FileNotFoundError:
             return None
 
     def add(self, image_name: str, value: torch.Tensor | torch.LongTensor, key: str) -> None:
         image_name = image_name.split('.')[0]
-        np.save(os.path.join(self.path_to_cache_dir, f'{image_name}_{key}.npy'), value.numpy())
+        file_path = os.path.join(self.path_to_cache_dir, f'{image_name}_{key}')
+        if key == 'txt':
+            np.save(file_path + '.npy', value.numpy())
+        else:
+            with gzip.open(file_path + '.gz', 'wb') as f:
+                np.save(f, value.numpy())
 
     def clear_cache(self):
         self.check_dir()
