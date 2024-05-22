@@ -30,6 +30,14 @@ class Predictor:
         text_latents = text_latents / text_latents.norm(dim=-1, keepdim=True)
         return text_latents
 
+    def get_text_latents_(self, tokens):
+        text_latents = []
+        for i in range(len(tokens)):
+            text_latents.append(self.clip_model.encode_text(tokens[i].unsqueeze(0).to(self.device)))
+
+        text_latents = torch.cat(text_latents, dim=0)
+        return text_latents / text_latents.norm(dim=-1, keepdim=True)
+
     def run(self, images, text_latents):
         if not self.quiet:
             pbar = tqdm()
@@ -63,5 +71,10 @@ class Predictor:
                 pbar.update(len(pil_images))
 
         image_latents = torch.cat(image_latents)
+        image_latents = image_latents / image_latents.norm(dim=-1, keepdim=True)
+        return image_latents
+
+    def get_image_latents_(self, img_tensors):
+        image_latents = self.clip_model.encode_image(img_tensors.to(self.device))
         image_latents = image_latents / image_latents.norm(dim=-1, keepdim=True)
         return image_latents
