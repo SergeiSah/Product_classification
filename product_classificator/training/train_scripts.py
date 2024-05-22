@@ -3,7 +3,6 @@
 """
 import os.path
 import shutil
-import json
 import pickle
 import pandas as pd
 import numpy as np
@@ -22,7 +21,8 @@ from .modules.cleaner import clean_dataset, TextCleaner
 from .modules.char_processor import CharExtractor, CharReducer
 from .modules.dataset import get_char_dataloaders, get_ruclip_dataloader
 from .modules.train_procedure import train_mlp_classifier, train_ruclip_one_epoch
-from .modules.visualisation import plot_history
+from .modules.visualisation import *
+from .modules.clusterization import *
 
 
 class Timer:
@@ -54,18 +54,16 @@ class Trainer:
                  path_to_images: str,
                  path_to_texts: str,
                  characteristics: list[str] = None,
-                 task: Task = None,
                  ruclip_train_params: dict = None,
                  heads_train_params: dict = None,
+                 clusterization_params: dict = None,
                  min_products_in_sub_cat: int = 10,
                  ruclip_model: str = 'ruclip-vit-base-patch16-384',
                  cache_dir: str = '/tmp',
                  save_dir: str = '/tmp/experiments'):
 
-        self.task = task
-
-        if isinstance(task, Task):
-            self.logger = task.get_logger()
+        self.task = None
+        self.logger = None
 
         self.ruclip_model = ruclip_model
 
@@ -103,6 +101,10 @@ class Trainer:
             'epochs': 15,
             'batch_size': 1024}
 
+        self.clusterization_params = clusterization_params or {
+            'n_clusters': 1000,
+        }
+
         self.end_of_train = {
             'del_img_and_txt_tensors': False,
             'del_loaded_ruclip_model': False
@@ -117,7 +119,7 @@ class Trainer:
         self.wb_train_df = 'wb_school_train.parquet'
         self.wb_test_df = 'wb_school_test.parquet'
 
-        self.img_size = 384
+        self.img_size = int(self.ruclip_model.split('-')[-1])
         self.tokens = 77
 
         self.timer = Timer()
@@ -146,8 +148,8 @@ class Trainer:
 
     def _save_config(self):
         config = self.ruclip_train_params | self.heads_train_params
-        with open(os.path.join(self.experiment_dir, 'config.json'), 'w') as f:
-            json.dump(config, f)
+        with open(os.path.join(self.experiment_dir, 'config.pkl'), 'wb') as f:
+            pickle.dump(config, f)
 
         if self.task is not None:
             self.task.connect(config, 'Experiment configuration')
@@ -232,7 +234,6 @@ class Trainer:
         return train_test
 
     def _first_part(self, timer, experiment_name: str):
-        self._create_experiment_dir(experiment_name)
         self._show_info('Start text preprocessing')
         with timer:
             train_test = self._loading_texts()
@@ -278,7 +279,7 @@ class Trainer:
 
         return dataloaders, char_uniq
 
-    def _train_heads_part(self, char_uniq, dataloaders, timer, save=True):
+    def _train_heads_part(self, char_uniq, dataloaders, timer, add_info: str = '', save=True):
         mlp_history = {char: {'train_loss': [], 'valid_loss': [], 'train_f1': [], 'valid_f1': []}
                        for char in self.characteristics}
 
@@ -292,7 +293,7 @@ class Trainer:
 
             if self.task is not None:
                 self.task.connect({x.split(': ')[0].strip(): x.split(': ')[1] for x in str(mlp).split('\n')[1:-1]},
-                                  f'{char} MLP')
+                                  f'{char} MLP' + add_info)
 
             criterion = self.heads_train_params['criterion']()
             optimizer = self.heads_train_params['optimizer'](mlp.parameters(),
@@ -301,7 +302,8 @@ class Trainer:
             with timer:
                 history, best_params = train_mlp_classifier(mlp, dataloaders[char], criterion, optimizer, char,
                                                             epochs=self.heads_train_params['epochs'])
-            plot_history(history, char_name=char)
+            fig = plot_history(history, char_name=char + add_info)
+            fig.savefig(os.path.join(self.experiment_dir, f'{char}_history.png'))
 
             for key in mlp_history[char]:
                 mlp_history[char][key].append(max(history[key]))
@@ -315,7 +317,24 @@ class Trainer:
 
         return mlp_history
 
-    def train_heads_only(self, experiment_name: str = None) -> None:
+    def _clusterization(self, embeddings: np.ndarray, df, params, save: bool, add_info: str = ''):
+        reduced_embed = get_reduced_embeds(embeddings)
+        clusterizer = get_clusterizer(reduced_embed,
+                                      min(self.clusterization_params['n_clusters'], df.shape[0]))
+        df['clusters'] = clusterizer.predict(reduced_embed)
+
+        fig = plot_clusters(df['clusters'], reduced_embed)
+        if save:
+            fig.savefig(os.path.join(self.experiment_dir, 'clusters.png'))
+
+        clust_metrics = get_clusterization_metrics(df, params, clusterizer, reduced_embed)
+        clust_metrics.to_csv(os.path.join(self.experiment_dir, 'clust_metrics.csv'))
+
+        if self.task is not None:
+            self.task.register_artifact('Clusterization metrics' + add_info, clust_metrics)
+
+    def train_heads_only(self, task: Task = None, experiment_name: str = None) -> None:
+        self._start_experiment(task, experiment_name)
 
         timer = Timer()
         train_test, clip, processor, predictor, device = self._first_part(timer, experiment_name)
@@ -332,9 +351,18 @@ class Trainer:
         self.check_save_dir()
         self._train_heads_part(char_uniq, dataloaders, timer)
 
+        self._show_info('Start clusterization')
+        cache = dataloaders[self.characteristics[0]]['train'].dataset.get_all_cached_embeds()
+        embeddings = np.concatenate([x.numpy().reshape(1, -1) for x in cache.values()])
+        df = train_test.set_index('nm').loc[cache.keys()].reset_index()
+        with timer:
+            self._clusterization(embeddings, df, self.characteristics, save=True)
+        self._show_info(f'End clusterization. Time: ' + str(timer.last_period))
+
         self._end_experiment()
 
-    def train_ruclip(self, experiment_name: str = None) -> None:
+    def train_ruclip(self, task: Task = None, experiment_name: str = None) -> None:
+        self._start_experiment(task, experiment_name)
 
         timer = Timer()
         train_test, clip, processor, predictor, device = self._first_part(timer, experiment_name)
@@ -371,13 +399,24 @@ class Trainer:
             if epoch > 1 and ruclip_loss[-1] > ruclip_loss[-2]:
                 best_params = clip.state_dict()
 
-            save = True if epoch == epochs else False
             dataloaders, char_uniq = self._prepare_dataloaders_for_heads(train_test, predictor, embeddings)
-            history = self._train_heads_part(char_uniq, dataloaders, timer, save=save)
+            history = self._train_heads_part(char_uniq, dataloaders, timer, add_info=f' (Epoch {epoch})', save=True)
+
+            self._show_info('Start clusterization')
+            cache = dataloaders[self.characteristics[0]]['train'].dataset.get_all_cached_embeds()
+            embeddings = np.concatenate([x.numpy().reshape(1, -1) for x in cache.values()])
+            df = train_test.set_index('nm').loc[cache.keys()].reset_index()
+            with timer:
+                self._clusterization(embeddings, df, self.characteristics, save=True)
+            self._show_info(f'End clusterization. Time: ' + str(timer.last_period))
 
             for char in mlp_history:
                 for key in mlp_history[char]:
                     mlp_history[char][key].append(history[char][key])
+
+            self._log_ruclip_loss(loss, epoch)
+
+        plot_history(mlp_history, 'Ruclip CrossEntropy Loss')
 
         torch.save(best_params, os.path.join(self.experiment_dir,  f'trained_{self.ruclip_model}.pt'))
         self._end_experiment()
@@ -391,15 +430,29 @@ class Trainer:
         clip.visual.ln_post.requires_grad_(True)
         clip.transformer.resblocks[-num_last_resblocks:].requires_grad_(True)
 
+    def _start_experiment(self, task: Task, experiment_name: str):
+        if task is not None:
+            self.task = task
+            self.logger = task.get_logger()
+        self._create_experiment_dir(experiment_name)
+        self._save_config()
+
     def _end_experiment(self) -> None:
+        self._show_info('End of experiment')
         if self.task is not None:
             self.task.close()
+            self.task = None
+            self.logger = None
 
         if self.end_of_train['del_img_and_txt_tensors']:
             path = os.path.join(self.cache_dir, 'cache')
             for file in os.listdir(path):
                 os.remove(os.path.join(path, file))
 
+            self._show_info('Image and text tensors deleted')
+
         if self.end_of_train['del_loaded_ruclip_model']:
             path = os.path.join(self.cache_dir, 'ruclip')
             shutil.rmtree(path)
+
+            self._show_info('Ruclip model deleted')
