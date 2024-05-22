@@ -73,6 +73,7 @@ class Trainer:
         self.save_dir = save_dir
 
         self.clean_text = True
+        self.set_cache = True
 
         self.ruclip_train_params = ruclip_train_params or {
             'img_criterion': torch.nn.CrossEntropyLoss,
@@ -367,7 +368,8 @@ class Trainer:
         dataloader = get_ruclip_dataloader(train_test, processor, self.path_to_images,
                                            os.path.join(self.cache_dir, 'cache'),
                                            self.img_size, self.tokens,
-                                           batch_size=self.ruclip_train_params['batch_size'])
+                                           self.ruclip_train_params['batch_size'],
+                                           self.set_cache)
 
         self._freeze_parameters(clip, self.ruclip_train_params['num_last_resblocks_to_train'])
 

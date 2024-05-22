@@ -144,7 +144,7 @@ class DatasetForPredictor(Dataset):
     __image_to_idx = None
 
     @classmethod
-    def set_cache(cls, idx_to_image: dict[int, str], path_to_cache_dir: str):
+    def set_cache_embed(cls, idx_to_image: dict[int, str], path_to_cache_dir: str):
         cls.__idx_to_image = idx_to_image
         cls.__image_to_idx = {v: k for k, v in cls.__idx_to_image.items()}
 
@@ -155,6 +155,8 @@ class DatasetForPredictor(Dataset):
             dtype=torch.float32
         )
 
+    @classmethod
+    def set_cache(cls, path_to_cache_dir: str):
         cls.__cache = Cache(path_to_cache_dir)
 
     @classmethod
@@ -326,7 +328,7 @@ def get_char_dataloaders(df: pd.DataFrame,
     check_df(df, chars)
 
     idx_to_image = {idx: image for idx, image in enumerate(df['nm'].values)}
-    DatasetForPredictor.set_cache(idx_to_image, path_to_cache_dir)
+    DatasetForPredictor.set_cache_embed(idx_to_image, path_to_cache_dir)
 
     if embeddings is not None:
         DatasetForPredictor.add_cache(embeddings)
@@ -359,7 +361,8 @@ def get_ruclip_dataloader(df: pd.DataFrame,
                           path_to_cache_dir: str,
                           img_size: int,
                           tokens_num: int,
-                          batch_size: int = 2048) -> DataLoader:
+                          batch_size: int,
+                          set_cache: bool) -> DataLoader:
 
     check_df(df)
 
@@ -367,8 +370,9 @@ def get_ruclip_dataloader(df: pd.DataFrame,
     descriptions = df['description'].values
     idx_to_image = {idx: image for idx, image in enumerate(image_names)}
 
-    DatasetForProcessor.set_cache(idx_to_image, path_to_cache_dir)
+    if set_cache:
+        DatasetForProcessor.set_cache(idx_to_image, path_to_cache_dir)
 
     return DataLoader(DatasetForProcessor(image_names, descriptions, processor, path_to_images, img_size, tokens_num),
-                      batch_size=batch_size, shuffle=True)
+                      batch_size=batch_size, shuffle=True, pin_memory=True)
 
