@@ -152,6 +152,16 @@ class DatasetForPredictor(Dataset):
         cls.__cache = Cache(path_to_cache_dir)
 
     @classmethod
+    def get_all_cached_embeds(cls):
+        all_embeds = {}
+        for idx, img in cls.__idx_to_image.items():
+            embed = cls.__cache_embed.get_slot(idx)
+            if embed is not None:
+                all_embeds[img] = embed
+
+        return all_embeds
+
+    @classmethod
     def clear_cache(cls):
         cls.__cache_embed = None
         cls.__idx_to_image = None
