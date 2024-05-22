@@ -72,6 +72,8 @@ class Trainer:
         self.cache_dir = cache_dir
         self.save_dir = save_dir
 
+        self.clean_text = True
+
         self.ruclip_train_params = ruclip_train_params or {
             'img_criterion': torch.nn.CrossEntropyLoss,
             'txt_criterion': torch.nn.CrossEntropyLoss,
@@ -188,7 +190,7 @@ class Trainer:
 
         return pd.concat([train, test], ignore_index=True).reset_index(drop=True)
 
-    def _preprocessing_texts(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _preprocessing_texts(self, df: pd.DataFrame, clean: bool) -> pd.DataFrame:
         train = df[df.characteristics.notna()]
         test = df[df.characteristics.isna()]
 
@@ -215,13 +217,14 @@ class Trainer:
         # объединение датасетов
         train_test = pd.concat([train, test], ignore_index=True).drop('title', axis=1)
 
-        cleaner = TextCleaner()
-        self._show_info('Cleaning texts')
-        with self.timer:
-            train_test['description'] = cleaner.fit_transform(train_test['description'])
-            if self.task is not None:
-                self.task.register_artifact('Prepared data', train_test)
-        self._show_info('End. Cleaning time: ' + str(self.timer.last_period))
+        if clean:
+            cleaner = TextCleaner()
+            self._show_info('Cleaning texts')
+            with self.timer:
+                train_test['description'] = cleaner.fit_transform(train_test['description'])
+                if self.task is not None:
+                    self.task.register_artifact('Prepared data', train_test)
+            self._show_info('End. Cleaning time: ' + str(self.timer.last_period))
 
         train_test['nm'] = train_test['nm'].apply(lambda x: str(x) + '.jpg')
 
@@ -231,7 +234,7 @@ class Trainer:
         self._show_info('Start text preprocessing')
         with timer:
             train_test = self._loading_texts()
-            train_test = self._preprocessing_texts(train_test)
+            train_test = self._preprocessing_texts(train_test, self.clean_text)
         self._show_info('End. Preprocessing time: ' + str(timer.last_period))
 
         self._show_info('Start ruCLIP loading')
