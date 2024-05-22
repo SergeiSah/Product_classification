@@ -9,7 +9,14 @@ text descriptions are obtained;
 classificators, trained on dataset  with product images and descriptions from 
 Wildberries online marketplace.
 
-Classificators:
+Development of the approach and data analysis are presented in notebooks:
+1. [Explanatory Data Analysis](https://github.com/SergeiSah/Product_classification/blob/master/study/1.%20EDA.ipynb)
+2. [Possible solutions](https://github.com/SergeiSah/Product_classification/blob/master/study/2.%20Possible%20solutions.ipynb)
+3. [Baseline](https://github.com/SergeiSah/Product_classification/blob/master/study/3.%20Baseline.ipynb)
+4. [Optimization](https://github.com/SergeiSah/Product_classification/blob/master/study/4.%20Optimization.ipynb)
+
+
+Results of final tests of classificators:
 
 | name             | F1-macro |
 |:-----------------|:---------|
