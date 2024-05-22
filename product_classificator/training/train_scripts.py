@@ -146,18 +146,6 @@ class Trainer:
         self.heads_dir = os.path.join(self.experiment_dir, 'heads')
         os.makedirs(self.heads_dir)
 
-    def _save_config(self):
-        config = {
-            'ruclip_train_params': self.ruclip_train_params,
-            'heads_train_params': self.heads_train_params
-        }
-
-        with open(os.path.join(self.experiment_dir, 'config.pkl'), 'wb') as f:
-            pickle.dump(config, f)
-
-        if self.task is not None:
-            self.task.connect(config, 'Experiment configuration')
-
     def _show_info(self, text: str):
         if self.task is not None:
             self.logger.report_text(text)
@@ -299,7 +287,7 @@ class Trainer:
 
             if self.task is not None:
                 self.task.connect({x.split(': ')[0].strip(): x.split(': ')[1] for x in str(mlp).split('\n')[1:-1]},
-                                  f'{char} MLP{add_info}' + add_info)
+                                  f'{char} MLP{add_info}')
 
             criterion = self.heads_train_params['criterion']()
             optimizer = self.heads_train_params['optimizer'](mlp.parameters(),
@@ -352,8 +340,6 @@ class Trainer:
 
         if self.task is not None:
             self.task.register_artifact('Num of unique characteristics', char_uniq.to_frame())
-            self.task.connect({k: str(v) for k, v in self.heads_train_params.items()},
-                              name='Heads training parameters')
 
         self.check_save_dir()
         self._train_heads_part(char_uniq, dataloaders, timer)
@@ -444,6 +430,18 @@ class Trainer:
             self.logger = task.get_logger()
         self._create_experiment_dir(experiment_name)
         self._save_config()
+
+    def _save_config(self):
+        config = {
+            'ruclip_train_params': self.ruclip_train_params,
+            'heads_train_params': self.heads_train_params
+        }
+
+        with open(os.path.join(self.experiment_dir, 'config.pkl'), 'wb') as f:
+            pickle.dump(config, f)
+
+        if self.task is not None:
+            self.task.connect(config, 'Experiment configuration')
 
     def _end_experiment(self) -> None:
         self._show_info('End of experiment')
