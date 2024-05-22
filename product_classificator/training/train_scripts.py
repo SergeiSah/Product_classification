@@ -76,7 +76,7 @@ class Trainer:
             'img_criterion': torch.nn.CrossEntropyLoss,
             'txt_criterion': torch.nn.CrossEntropyLoss,
             'epochs': 5,
-            'batch_size': 512,
+            'batch_size': 1024,
             'optimizer': torch.optim.Adam,
             'optimizer_params': {
                 'lr': 5e-5,
@@ -84,7 +84,7 @@ class Trainer:
                 'eps': 1e-6,
                 'weight_decay': 0.2
             },
-            'num_last_resblocks_to_train': 2
+            'num_last_resblocks_to_train': 1
         }
 
         self.heads_train_params = heads_train_params or {
