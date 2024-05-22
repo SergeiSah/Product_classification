@@ -147,7 +147,11 @@ class Trainer:
         os.makedirs(self.heads_dir)
 
     def _save_config(self):
-        config = self.ruclip_train_params | self.heads_train_params
+        config = {
+            'ruclip_train_params': self.ruclip_train_params,
+            'heads_train_params': self.heads_train_params
+        }
+
         with open(os.path.join(self.experiment_dir, 'config.pkl'), 'wb') as f:
             pickle.dump(config, f)
 
@@ -160,30 +164,32 @@ class Trainer:
         else:
             print(text)
 
-    def _log_history(self, char: str, history: dict[str, list[float]]):
+    def _log_history(self, char: str, history: dict[str, list[float]], add_info: str = ''):
         for i in range(len(history['train_loss'])):
-            self.logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'train',
+            self.logger.report_scalar(title=f'{char}{add_info}: CrossEntropyLoss', series=f'train',
                                       value=history['train_loss'][i],
                                       iteration=i + 1)
-            self.logger.report_scalar(title=f'{char}: CrossEntropyLoss', series=f'valid',
+            self.logger.report_scalar(title=f'{char}{add_info}: CrossEntropyLoss', series=f'valid',
                                       value=history['valid_loss'][i],
                                       iteration=i + 1)
 
-            self.logger.report_scalar(title=f'{char}: F1-macro', series=f'train', value=history['train_f1'][i],
+            self.logger.report_scalar(title=f'{char}{add_info}: F1-macro', series=f'train',
+                                      value=history['train_f1'][i],
                                       iteration=i + 1)
-            self.logger.report_scalar(title=f'{char}: F1-macro', series=f'valid', value=history['valid_f1'][i],
+            self.logger.report_scalar(title=f'{char}{add_info}: F1-macro', series=f'valid',
+                                      value=history['valid_f1'][i],
                                       iteration=i + 1)
 
     def _log_ruclip_loss(self, loss: float, iteration: int):
         if self.task is not None:
-            self.logger.report_scalar(title='ruclip', series='CrossEntropyLoss',
+            self.logger.report_scalar(title='ruCLIP Cross Entropy Loss', series='CrossEntropyLoss',
                                       value=loss, iteration=iteration)
 
     def check_save_dir(self):
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
-        if not os.path.exists(os.path.join(self.save_dir, self.heads_dir)):
-            os.makedirs(os.path.join(self.save_dir, self.heads_dir))
+        if not os.path.exists(self.heads_dir):
+            os.makedirs(self.heads_dir)
 
     def _loading_texts(self) -> pd.DataFrame:
         train = pd.read_parquet(self.path_to_dfs + self.wb_train_df)
@@ -272,7 +278,7 @@ class Trainer:
                 )
                 self.task.register_artifact(char, df)
 
-        with open(os.path.join(self.experiment_dir, self.heads_dir, 'label_to_char.pkl'), 'wb') as f:
+        with open(os.path.join(self.heads_dir, 'label_to_char.pkl'), 'wb') as f:
             pickle.dump(label_to_char, f)
 
         char_uniq = train_test[self.characteristics].nunique()
@@ -293,7 +299,7 @@ class Trainer:
 
             if self.task is not None:
                 self.task.connect({x.split(': ')[0].strip(): x.split(': ')[1] for x in str(mlp).split('\n')[1:-1]},
-                                  f'{char} MLP' + add_info)
+                                  f'{char} MLP{add_info}' + add_info)
 
             criterion = self.heads_train_params['criterion']()
             optimizer = self.heads_train_params['optimizer'](mlp.parameters(),
@@ -303,17 +309,18 @@ class Trainer:
                 history, best_params = train_mlp_classifier(mlp, dataloaders[char], criterion, optimizer, char,
                                                             epochs=self.heads_train_params['epochs'])
             fig = plot_history(history, char_name=char + add_info)
-            fig.savefig(os.path.join(self.experiment_dir, f'{char}_history.png'))
+            fig.savefig(os.path.join(self.experiment_dir, f'{char}_history{add_info}.png'))
 
             for key in mlp_history[char]:
                 mlp_history[char][key].append(max(history[key]))
 
             self._show_info(f'End training MLP classifier "{char}". Time: ' + str(timer.last_period))
             if self.task is not None:
-                self._log_history(char, history)
+                s = '' if add_info == '' else '/' + add_info.strip()
+                self._log_history(char, history, add_info=s)
 
             if save:
-                torch.save(best_params, os.path.join(self.experiment_dir, self.heads_dir, f'{char}.pt'))
+                torch.save(best_params, os.path.join(self.heads_dir, f'{char}.pt'))
 
         return mlp_history
 
@@ -325,10 +332,10 @@ class Trainer:
 
         fig = plot_clusters(df['clusters'], reduced_embed)
         if save:
-            fig.savefig(os.path.join(self.experiment_dir, 'clusters.png'))
+            fig.savefig(os.path.join(self.experiment_dir, f'clusters{add_info}.png'))
 
         clust_metrics = get_clusterization_metrics(df, params, clusterizer, reduced_embed)
-        clust_metrics.to_csv(os.path.join(self.experiment_dir, 'clust_metrics.csv'))
+        clust_metrics.to_csv(os.path.join(self.experiment_dir, f'clust_metrics{add_info}.csv'))
 
         if self.task is not None:
             self.task.register_artifact('Clusterization metrics' + add_info, clust_metrics)
@@ -407,16 +414,17 @@ class Trainer:
             embeddings = np.concatenate([x.numpy().reshape(1, -1) for x in cache.values()])
             df = train_test.set_index('nm').loc[cache.keys()].reset_index()
             with timer:
-                self._clusterization(embeddings, df, self.characteristics, save=True)
+                self._clusterization(embeddings, df, self.characteristics, save=True, add_info=f' (Epoch {epoch})')
             self._show_info(f'End clusterization. Time: ' + str(timer.last_period))
 
             for char in mlp_history:
                 for key in mlp_history[char]:
-                    mlp_history[char][key].append(history[char][key])
+                    mlp_history[char][key].append(max(history[char][key]))
 
-            self._log_ruclip_loss(loss, epoch)
-
-        plot_history(mlp_history, 'Ruclip CrossEntropy Loss')
+        for char in mlp_history:
+            fig = plot_history(mlp_history[char], f'{char}')
+            fig.savefig(os.path.join(self.experiment_dir,  f'{char}_history.png'))
+            self._log_history(char, mlp_history[char])
 
         torch.save(best_params, os.path.join(self.experiment_dir,  f'trained_{self.ruclip_model}.pt'))
         self._end_experiment()
