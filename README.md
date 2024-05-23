@@ -42,6 +42,39 @@ Example of classification by *category*, *sub_category* and *isadult*
 
 **Note**: in Colab `numpy` must be version ~1.25.0 for correct work.
 
+```python
+import pandas as pd
+from PIL import Image
+import matplotlib.pyplot as plt
+from product_classificator import Classificator, load
+
+
+load('ruclip-vit-base-patch16-384')
+
+df = pd.read_csv('<path_to_df_with_dataset info>')
+texts = df.descriptions.values
+img_names = df.image_names.values
+
+images = []
+for img_name in img_names:
+    images.append(Image.open('<path_to_images>' + img_name))
+
+clf = Classificator()
+
+res = clf.classify_products(texts, images)
+
+fig, axes = plt.subplots(5, 2, figsize=(8, 20))
+
+axes = axes.flatten()
+
+for i, ax in enumerate(axes):
+    ax.imshow(images[i])
+    ax.set_title(f'category: {res["category"][i]}\nsub_category: {res["sub_category"][i]}\nisadult: {res["isadult"][i]}',
+                 fontsize=10)
+    ax.axis('off')
+```
+![pics/example.png](./pics/example.png)
+
 ## Training
 
 By default, classificator utilizes ruCLIP model without additional training on WB dataset, only MLP head classificators 
@@ -69,8 +102,10 @@ One can also train last resblocks of ruCLIP vision and text transformers.
 ```python
 trainer.train_ruclip()
 ```
-After each epoch MLP head classificators will be trained. To speed up training processed images and texts are cached on
-disk in `Trainer().cache_dir`. Embeddings are cached in RAM. To delete all cached files after experiment specify 
+Training procedure is based on the following [code](https://github.com/revantteotia/clip-training/blob/main/train.py).
+
+After each epoch MLP head classificators will be trained. To speed up training the processed images and texts are cached on
+disk in `Trainer().cache_dir` directory. Embeddings are cached in RAM. To delete all cached files after the training specify 
 `Trainer().end_of_train['del_img_and_txt_tensors']=True`.
 
 All training results will be saved in `Trainer().experiment_dir` folder.
