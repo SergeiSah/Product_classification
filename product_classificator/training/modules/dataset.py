@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 
 from stocaching import SharedCache
-from .image_loader import get_images, get_images_from_zip
+from .image_loader import get_images, get_images_from_zip, is_files_in_zip
 
 
 class Cache:
@@ -24,7 +24,13 @@ class Cache:
         try:
             image_name = image_name.split('.')[0]
             format_ = '.npy' if key == 'txt' else '.npz'
-            np_value = np.load(os.path.join(self.path_to_cache_dir, f'{image_name}_{key}{format_}'))
+            path = os.path.join(self.path_to_cache_dir, f'{image_name}_{key}{format_}')
+
+            if format_ == '.npy':
+                np_value = np.load(path)
+            else:
+                with np.load(path) as npz:
+                    np_value = npz['arr_0']
 
             return torch.from_numpy(np_value)
         except FileNotFoundError:
@@ -301,18 +307,6 @@ def check_df(df: pd.DataFrame, chars: list = None) -> None:
     for col in cols:
         if col not in df.columns:
             raise ValueError(f'Column {col} is not in the dataframe')
-
-
-def is_files_in_zip(path_to_images: str) -> bool:
-    if os.path.isdir(path_to_images):
-        files_in_zip = False
-    elif os.path.isfile(path_to_images):
-        if path_to_images.endswith('.zip'):
-            files_in_zip = True
-    else:
-        raise ValueError('Path to images must be a directory or a zip file')
-
-    return files_in_zip
 
 
 def get_char_dataloaders(df: pd.DataFrame,
