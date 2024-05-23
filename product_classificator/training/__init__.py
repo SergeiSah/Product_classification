@@ -1,6 +1,6 @@
 from .train_scripts import Trainer
 from .test_scripts import *
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 
 tqdm.pandas()
 
