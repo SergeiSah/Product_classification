@@ -122,3 +122,5 @@ from clearml import Task
 task = Task.init('Project name', 'Task name')
 trainer.train_ruclip(task)
 ```
+
+**Example**: [ruCLIP training](https://github.com/SergeiSah/Product_classification/blob/master/study/Training%20example.ipynb)
