@@ -21,6 +21,8 @@ class Classificator:
                  heads_ver='wb-6_cats-pca',
                  cache_dir='/tmp/ruclip/'):
 
+        self.device = device
+
         if heads is None:
             heads = ['category', 'sub_category', 'isadult']
         else:
@@ -67,11 +69,13 @@ class Classificator:
         text_vec = self.clip_predictor.get_text_latents(texts).detach().cpu().numpy()
         image_vec = self.clip_predictor.get_image_latents(images).detach().cpu().numpy()
         concat_vec = np.concatenate([text_vec, image_vec], axis=1)
-        reduced_vec = self.reducer.transform(concat_vec)
+
+        if self.reducer is not None:
+            concat_vec = self.reducer.transform(concat_vec)
 
         results = {}
         for name in characteristics:
-            indexes = self.heads[name](torch.tensor(reduced_vec)).argmax(dim=1).detach().cpu().numpy()
+            indexes = self.heads[name](torch.tensor(concat_vec)).argmax(dim=1).detach().cpu().numpy()
             results[name] = [self.label_to_char[name][index] for index in indexes]
 
         return results
