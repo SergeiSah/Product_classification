@@ -165,7 +165,7 @@ class Trainer:
         train = clean_dataset(train)
 
         test = pd.read_parquet(os.path.join(self.path_to_dfs, self.wb_test_df))
-        test = clean_dataset(test)
+        test = clean_dataset(test, ['price', 'brand'])
 
         return pd.concat([train, test], ignore_index=True).reset_index(drop=True)
 
