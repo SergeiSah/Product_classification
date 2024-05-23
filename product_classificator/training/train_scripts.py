@@ -181,9 +181,9 @@ class Trainer:
         with self.timer_:
             try:
                 train = char_extractor.fit_transform(train)
+                train = char_reducer.fit_transform(train)
             except Exception as e:
                 pass
-            train = char_reducer.fit_transform(train)
         self._show_info('End. Extraction time: ' + str(self.timer_.last_period))
 
         train = train.drop('characteristics', axis=1)
