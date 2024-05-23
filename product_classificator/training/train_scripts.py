@@ -23,29 +23,7 @@ from .modules.dataset import get_char_dataloaders, get_ruclip_dataloader
 from .modules.train_procedure import train_mlp_classifier, train_ruclip_one_epoch
 from .modules.visualisation import *
 from .modules.clusterization import *
-
-
-class Timer:
-
-    def __init__(self):
-        self.start = None
-        self.end = None
-
-        self.last_period = None
-
-    def __enter__(self):
-        self.start = pd.Timestamp.now()
-        return self
-
-    def __exit__(self, *args):
-        self.end_timer()
-
-    def start_timer(self):
-        self.start = pd.Timestamp.now()
-
-    def end_timer(self):
-        self.end = pd.Timestamp.now()
-        self.last_period = str(self.end - self.start)
+from .modules.timer import Timer
 
 
 class Trainer:
@@ -125,7 +103,7 @@ class Trainer:
         self.img_size = int(self.ruclip_model.split('-')[-1])
         self.tokens = 77
 
-        self.timer = Timer()
+        self.timer_ = Timer()
 
         self._create_dirs_for_saving_results_and_cache()
 
@@ -200,10 +178,10 @@ class Trainer:
         char_reducer = CharReducer()
 
         self._show_info('Extracting characteristics from train dataset')
-        with self.timer:
+        with self.timer_:
             train = char_extractor.fit_transform(train)
             train = char_reducer.fit_transform(train)
-        self._show_info('End. Extraction time: ' + str(self.timer.last_period))
+        self._show_info('End. Extraction time: ' + str(self.timer_.last_period))
 
         train = train.drop('characteristics', axis=1)
 
@@ -221,11 +199,11 @@ class Trainer:
         if clean:
             cleaner = TextCleaner()
             self._show_info('Cleaning texts')
-            with self.timer:
+            with self.timer_:
                 train_test['description'] = cleaner.fit_transform(train_test['description'])
                 if self.task is not None:
                     self.task.register_artifact('Prepared data', train_test)
-            self._show_info('End. Cleaning time: ' + str(self.timer.last_period))
+            self._show_info('End. Cleaning time: ' + str(self.timer_.last_period))
 
         train_test['nm'] = train_test['nm'].apply(lambda x: str(x) + '.jpg')
 
