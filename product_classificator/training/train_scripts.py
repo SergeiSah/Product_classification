@@ -179,7 +179,10 @@ class Trainer:
 
         self._show_info('Extracting characteristics from train dataset')
         with self.timer_:
-            train = char_extractor.fit_transform(train)
+            try:
+                train = char_extractor.fit_transform(train)
+            except Exception as e:
+                pass
             train = char_reducer.fit_transform(train)
         self._show_info('End. Extraction time: ' + str(self.timer_.last_period))
 
