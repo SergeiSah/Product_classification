@@ -1,4 +1,5 @@
 import zipfile
+import os
 from PIL import Image
 
 
@@ -52,3 +53,15 @@ def get_images_from_zip(file_names: list[str], path_to_zip: str) -> list[Image.I
             images.append(get_image(zf.open(file_name)))
 
     return images
+
+
+def is_files_in_zip(path_to_images: str) -> bool:
+    if os.path.isdir(path_to_images):
+        files_in_zip = False
+    elif os.path.isfile(path_to_images):
+        if path_to_images.endswith('.zip'):
+            files_in_zip = True
+    else:
+        raise ValueError('Path to images must be a directory or a zip file')
+
+    return files_in_zip
