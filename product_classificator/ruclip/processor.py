@@ -5,7 +5,7 @@ import json
 import torch
 import numpy as np
 import youtokentome as yttm
-import torchvision.transforms as T
+from torchvision.transforms import v2
 from torch.nn.utils.rnn import pad_sequence
 
 
@@ -19,11 +19,12 @@ class RuCLIPProcessor:
         self.tokenizer = yttm.BPE(tokenizer_path)
         self.mean = mean or [0.48145466, 0.4578275, 0.40821073]
         self.std = std or [0.26862954, 0.26130258, 0.27577711]
-        self.image_transform = T.Compose([
-            T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
-            T.RandomResizedCrop(image_size, scale=(1., 1.), ratio=(1., 1.)),
-            T.ToTensor(),
-            T.Normalize(mean=self.mean, std=self.std)
+        self.image_transform = v2.Compose([
+            v2.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+            v2.ToImage(),
+            v2.RandomResizedCrop(image_size, scale=(1., 1.), ratio=(1., 1.), antialias=True),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=self.mean, std=self.std)
         ])
         self.text_seq_length = text_seq_length
         self.image_size = image_size
