@@ -10,25 +10,20 @@ class Predictor:
         self.clip_model.eval()
         self.clip_processor = clip_processor
 
-    def get_text_latents(self, inputs: str | list[str] | torch.Tensor):
+    def get_text_latents(self, inputs: str | list[str] | torch.LongTensor):
         if isinstance(inputs, str):
             inputs = [inputs]
-        if not isinstance(inputs, torch.Tensor):
-            inputs = self.clip_processor(text=inputs)['input_ids'].to(self.device)
-        else:
-            raise TypeError('Input must be either a string, a list of strings or torch.Tensor')
+        if not isinstance(inputs, torch.LongTensor):
+            inputs = self.clip_processor(text=inputs, return_tensors='pt', padding=True)['input_ids']
 
-        text_latents = self.clip_model.encode_text(inputs)
+        text_latents = self.clip_model.encode_text(inputs.to(self.device))
         return text_latents / text_latents.norm(dim=-1, keepdim=True)
 
     def get_image_latents(self, inputs: Image.Image | list[Image.Image] | torch.Tensor):
         if isinstance(inputs, Image.Image):
             inputs = [inputs]
-        if isinstance(inputs, list):
-            inputs = self.clip_processor(images=inputs)['pixel_values'].to(self.device)
-        else:
-            raise TypeError('Input must be either a string, a list of strings or torch.Tensor')
+        if not isinstance(inputs, torch.Tensor):
+            inputs = self.clip_processor(images=inputs, return_tensors='pt', padding=True)['pixel_values']
 
-        image_latents = self.clip_model.encode_image(inputs)
-        image_latents = image_latents / image_latents.norm(dim=-1, keepdim=True)
-        return image_latents
+        image_latents = self.clip_model.encode_image(inputs.to(self.device))
+        return image_latents / image_latents.norm(dim=-1, keepdim=True)

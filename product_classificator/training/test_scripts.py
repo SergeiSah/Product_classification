@@ -27,17 +27,19 @@ def _start_test(clf, image_names, texts, characteristics, batch_size, path_to_im
     assert batch_size < len(image_names), \
         f'Batch size must be less than the number of elements in the arrays'
 
+    print('Warming up... ', end='')
     batches = list(zip(
         list(chunked(texts, batch_size)),
         list(chunked(image_names, batch_size))
     ))
 
-    for i in range(warming_up_batches_num):
-        texts_batch, images_batch = batches[i]
+    for _ in range(warming_up_batches_num):
+        texts_batch, images_batch = batches[0]
         images_batch = _load_images(images_batch, path_to_images)
 
         clf.classify_products(texts_batch, images_batch, characteristics)
 
+    print('Done')
     return batches
 
 
@@ -88,7 +90,7 @@ def test_classifier_inference_time(clf: Classificator,
                                    characteristics: list[str],
                                    batch_size: int,
                                    path_to_images: str,
-                                   warming_up_batches_num: int = 5) -> pd.DataFrame:
+                                   warming_up_batches_num: int = 20) -> pd.DataFrame:
 
     batches = _start_test(clf,
                           image_names,
@@ -98,18 +100,7 @@ def test_classifier_inference_time(clf: Classificator,
                           path_to_images,
                           warming_up_batches_num)
 
-    log = pd.DataFrame(
-        columns=['loading_images',
-                 'image_processing',
-                 'text_processing',
-                 'calc_image_latents',
-                 'calc_text_latents',
-                 'predictions',
-                 'cols_sum',
-                 'sum_batch_time'],
-        dtype='float64'
-    )
-
+    log = pd.DataFrame(dtype='float64')
     processor = clf.clip_predictor.clip_processor
 
     timer = Timer()
@@ -122,23 +113,23 @@ def test_classifier_inference_time(clf: Classificator,
 
                 with timer:
                     images_batch = _load_images(images_batch, path_to_images)
-                log.loc[i, 'loading_images'] = timer.last_period.total_seconds()
+                log.loc[i, 'load_images'] = timer.last_period.total_seconds()
 
                 with timer:
                     image_tensors = processor(images=images_batch, return_tensors='pt', padding=True)['pixel_values']
-                log.loc[i, 'image_processing'] = timer.last_period.total_seconds()
+                log.loc[i, 'img_process'] = timer.last_period.total_seconds()
 
                 with timer:
                     text_tokens = processor(text=texts_batch, return_tensors='pt', padding=True)['input_ids']
-                log.loc[i, 'text_processing'] = timer.last_period.total_seconds()
+                log.loc[i, 'txt_process'] = timer.last_period.total_seconds()
 
                 with timer:
                     image_latents = clf.clip_predictor.get_image_latents(image_tensors)
-                log.loc[i, 'calc_image_latents'] = timer.last_period.total_seconds()
+                log.loc[i, 'img_encode'] = timer.last_period.total_seconds()
 
                 with timer:
                     text_latents = clf.clip_predictor.get_text_latents(text_tokens)
-                log.loc[i, 'calc_text_latents'] = timer.last_period.total_seconds()
+                log.loc[i, 'txt_encode'] = timer.last_period.total_seconds()
 
                 with timer:
                     concat_latents = torch.cat((image_latents, text_latents), dim=1)
@@ -168,8 +159,8 @@ def test_ruclip_training_time(clf: Classificator,
                               optimizer: torch.optim.Optimizer,
                               loss_img: torch.nn.Module,
                               loss_txt: torch.nn.Module,
-                              warming_up_batches_num: int = 5,
-                              num_last_resblocks: int = 1) -> pd.DataFrame:
+                              warming_up_batches_num: int = 20,
+                              num_last_resblocks: int = 2) -> pd.DataFrame:
 
     batches = _start_test(clf,
                           image_names,
@@ -179,20 +170,7 @@ def test_ruclip_training_time(clf: Classificator,
                           path_to_images,
                           warming_up_batches_num)
 
-    log = pd.DataFrame(
-        columns=['loading_images',
-                 'image_processing',
-                 'text_processing',
-                 'calc_image_latents',
-                 'calc_text_latents',
-                 'loss_calc',
-                 'loss_backprop',
-                 'optimizer_step',
-                 'saving_embeddings',
-                 'cols_sum',
-                 'sum_batch_time'],
-        dtype='float64'
-    )
+    log = pd.DataFrame(dtype='float64')
 
     timer = Timer()
     timer_sum = Timer()
@@ -219,25 +197,25 @@ def test_ruclip_training_time(clf: Classificator,
 
             with timer:
                 images_batch = _load_images(images_batch, path_to_images)
-            log.loc[i, 'loading_images'] = timer.last_period.total_seconds()
+            log.loc[i, 'load_images'] = timer.last_period.total_seconds()
 
             with timer:
                 pixel_values = processor(images=images_batch, return_tensors='pt',
                                          padding=True)['pixel_values'].to(clf.device)
-            log.loc[i, 'image_processing'] = timer.last_period.total_seconds()
+            log.loc[i, 'img_process'] = timer.last_period.total_seconds()
 
             with timer:
                 input_ids = processor(text=texts_batch, return_tensors='pt',
                                       padding=True)['input_ids'].to(clf.device)
-            log.loc[i, 'text_processing'] = timer.last_period.total_seconds()
+            log.loc[i, 'txt_process'] = timer.last_period.total_seconds()
 
             with timer:
                 image_features = clip.encode_image(pixel_values)
-            log.loc[i, 'calc_image_latents'] = timer.last_period.total_seconds()
+            log.loc[i, 'img_encode'] = timer.last_period.total_seconds()
 
             with timer:
                 text_features = clip.encode_text(input_ids)
-            log.loc[i, 'calc_text_latents'] = timer.last_period.total_seconds()
+            log.loc[i, 'txt_encode'] = timer.last_period.total_seconds()
 
             with timer:
                 image_features = image_features / image_features.norm(dim=-1, keepdim=True)
@@ -261,7 +239,7 @@ def test_ruclip_training_time(clf: Classificator,
 
             with timer:
                 optimizer.step()
-            log.loc[i, 'optimizer_step'] = timer.last_period.total_seconds()
+            log.loc[i, 'optim_step'] = timer.last_period.total_seconds()
 
             losses.append(loss.item())
 
@@ -272,7 +250,7 @@ def test_ruclip_training_time(clf: Classificator,
                 for j, idx in enumerate(idxs):
                     embeddings[idx] = concat[j]
 
-            log.loc[i, 'saving_embeddings'] = timer.last_period.total_seconds()
+            log.loc[i, 'save_embeds'] = timer.last_period.total_seconds()
         log.loc[i, 'cols_sum'] = log.iloc[i, 0:-1].sum()
         log.loc[i, 'sum_batch_time'] = timer_sum.last_period.total_seconds()
 
