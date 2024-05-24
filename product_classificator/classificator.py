@@ -15,7 +15,6 @@ class Classificator:
 
     def __init__(self,
                  device='cpu',
-                 quiet=True,
                  heads=None,
                  model_name='ruclip-vit-base-patch16-384',
                  heads_ver='wb-6_cats-pca',
@@ -36,7 +35,6 @@ class Classificator:
             CLIP.from_pretrained(cache_dir + model_name).eval().to(device),
             RuCLIPProcessor.from_pretrained(cache_dir + model_name),
             device,
-            quiet=quiet
         )
 
         self.heads = {}
@@ -49,7 +47,10 @@ class Classificator:
         with open(f'{self.path_to_heads}/{self.heads_ver}/pca_all.pkl', 'rb') as f:
             self.reducer = pickle.load(f)
 
-    def classify_products(self, texts: list[str], images: list[Image.Image], characteristics: list[str] = None):
+    def classify_products(self,
+                          texts: list[str] | str,
+                          images: list[Image.Image] | Image.Image,
+                          characteristics: list[str] = None):
         """
         Классифицирует товары на основе их текстовых описаний и изображений.
 
@@ -66,8 +67,10 @@ class Classificator:
         if characteristics is None:
             characteristics = self.heads.keys()
 
-        text_vec = self.clip_predictor.get_text_latents(texts).detach().cpu().numpy()
-        image_vec = self.clip_predictor.get_image_latents(images).detach().cpu().numpy()
+        with torch.no_grad():
+            text_vec = self.clip_predictor.get_text_latents(texts).detach().cpu().numpy()
+            image_vec = self.clip_predictor.get_image_latents(images).detach().cpu().numpy()
+
         concat_vec = np.concatenate([text_vec, image_vec], axis=1)
 
         if self.reducer is not None:
@@ -89,4 +92,3 @@ class Classificator:
         """
         self.heads[name] = torch.load(f'{self.path_to_heads}/{self.heads_ver}/{name}.pt')
         self.heads[name].eval()
-

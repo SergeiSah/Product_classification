@@ -282,8 +282,8 @@ class DatasetForPredictor(Dataset):
             img_tensors = torch.cat(img_tensors)
             txt_tokens = torch.cat(txt_tokens)
 
-            img_vecs = self.predictor.get_image_latents_(img_tensors.to(self.predictor.device)).detach().cpu()
-            text_vecs = self.predictor.get_text_latents_(txt_tokens.to(self.predictor.device)).detach().cpu()
+            img_vecs = self.predictor.get_image_latents(img_tensors.to(self.predictor.device)).detach().cpu()
+            text_vecs = self.predictor.get_text_latents(txt_tokens.to(self.predictor.device)).detach().cpu()
 
             concat = torch.cat([img_vecs, text_vecs], dim=1).view(-1, 512 * 2)
             chars = torch.LongTensor([self.char_to_label[char] for char in chars])

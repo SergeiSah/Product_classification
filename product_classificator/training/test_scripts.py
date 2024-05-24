@@ -32,13 +32,11 @@ def _start_test(clf, image_names, texts, characteristics, batch_size, path_to_im
         list(chunked(image_names, batch_size))
     ))
 
-    i = 0
-    while i < warming_up_batches_num:
+    for i in range(warming_up_batches_num):
         texts_batch, images_batch = batches[i]
         images_batch = _load_images(images_batch, path_to_images)
 
         clf.classify_products(texts_batch, images_batch, characteristics)
-        i += 1
 
     return batches
 
@@ -100,8 +98,6 @@ def test_classifier_inference_time(clf: Classificator,
                           path_to_images,
                           warming_up_batches_num)
 
-    files_in_zip = is_files_in_zip(path_to_images)
-
     log = pd.DataFrame(
         columns=['loading_images',
                  'image_processing',
@@ -119,48 +115,46 @@ def test_classifier_inference_time(clf: Classificator,
     timer = Timer()
     timer_sum = Timer()
 
-    for i, batch in tqdm(enumerate(batches), total=len(image_names) // batch_size):
-        with timer_sum:
-            texts_batch, images_batch = batch
+    with torch.no_grad():
+        for i, batch in tqdm(enumerate(batches), total=len(image_names) // batch_size):
+            with timer_sum:
+                texts_batch, images_batch = batch
 
-            with timer:
-                if files_in_zip:
-                    images_batch = get_images_from_zip(images_batch, path_to_images)
-                else:
-                    images_batch = get_images(images_batch, path_to_images)
-            log.loc[i, 'loading_images'] = timer.last_period.total_seconds()
+                with timer:
+                    images_batch = _load_images(images_batch, path_to_images)
+                log.loc[i, 'loading_images'] = timer.last_period.total_seconds()
 
-            with timer:
-                image_tensors = processor(images=images_batch, return_tensors='pt', padding=True)['pixel_values']
-            log.loc[i, 'image_processing'] = timer.last_period.total_seconds()
+                with timer:
+                    image_tensors = processor(images=images_batch, return_tensors='pt', padding=True)['pixel_values']
+                log.loc[i, 'image_processing'] = timer.last_period.total_seconds()
 
-            with timer:
-                text_tokens = processor(text=texts_batch, return_tensors='pt', padding=True)['input_ids']
-            log.loc[i, 'text_processing'] = timer.last_period.total_seconds()
+                with timer:
+                    text_tokens = processor(text=texts_batch, return_tensors='pt', padding=True)['input_ids']
+                log.loc[i, 'text_processing'] = timer.last_period.total_seconds()
 
-            with timer:
-                image_latents = clf.clip_predictor.get_image_latents_(image_tensors)
-            log.loc[i, 'calc_image_latents'] = timer.last_period.total_seconds()
+                with timer:
+                    image_latents = clf.clip_predictor.get_image_latents(image_tensors)
+                log.loc[i, 'calc_image_latents'] = timer.last_period.total_seconds()
 
-            with timer:
-                text_latents = clf.clip_predictor.get_text_latents_(text_tokens)
-            log.loc[i, 'calc_text_latents'] = timer.last_period.total_seconds()
+                with timer:
+                    text_latents = clf.clip_predictor.get_text_latents(text_tokens)
+                log.loc[i, 'calc_text_latents'] = timer.last_period.total_seconds()
 
-            with timer:
-                concat_latents = torch.cat((image_latents, text_latents), dim=1)
+                with timer:
+                    concat_latents = torch.cat((image_latents, text_latents), dim=1)
 
-                if clf.reducer is not None:
-                    concat_latents = torch.tensor(
-                        clf.reducer.transform(concat_latents.detach().cpu().numpy()))
+                    if clf.reducer is not None:
+                        concat_latents = torch.tensor(
+                            clf.reducer.transform(concat_latents.detach().cpu().numpy()))
 
-                results = {}
-                for name in characteristics:
-                    indexes = clf.heads[name](concat_latents).argmax(dim=1).detach().cpu().numpy()
-                    results[name] = [clf.label_to_char[name][index] for index in indexes]
+                    results = {}
+                    for name in characteristics:
+                        indexes = clf.heads[name](concat_latents).argmax(dim=1).detach().cpu().numpy()
+                        results[name] = [clf.label_to_char[name][index] for index in indexes]
 
-            log.loc[i, 'predictions'] = timer.last_period.total_seconds()
-        log.loc[i, 'cols_sum'] = log.iloc[i, 0:-1].sum()
-        log.loc[i, 'sum_batch_time'] = timer_sum.last_period.total_seconds()
+                log.loc[i, 'predictions'] = timer.last_period.total_seconds()
+            log.loc[i, 'cols_sum'] = log.iloc[i, 0:-1].sum()
+            log.loc[i, 'sum_batch_time'] = timer_sum.last_period.total_seconds()
 
     return log
 
@@ -184,8 +178,6 @@ def test_ruclip_training_time(clf: Classificator,
                           batch_size,
                           path_to_images,
                           warming_up_batches_num)
-
-    files_in_zip = is_files_in_zip(path_to_images)
 
     log = pd.DataFrame(
         columns=['loading_images',
@@ -226,10 +218,7 @@ def test_ruclip_training_time(clf: Classificator,
             texts_batch, images_batch = batch
 
             with timer:
-                if files_in_zip:
-                    images_batch = get_images_from_zip(images_batch, path_to_images)
-                else:
-                    images_batch = get_images(images_batch, path_to_images)
+                images_batch = _load_images(images_batch, path_to_images)
             log.loc[i, 'loading_images'] = timer.last_period.total_seconds()
 
             with timer:

@@ -50,6 +50,7 @@ class RuCLIPProcessor:
 
     def __call__(self, text=None, images=None, **kwargs):
         inputs = {}
+
         if text is not None:
             input_ids = []
             texts = [text] if isinstance(text, str) else text
@@ -57,11 +58,13 @@ class RuCLIPProcessor:
                 tokens = self.encode_text(text)
                 input_ids.append(tokens)
             inputs['input_ids'] = pad_sequence(input_ids, batch_first=True)
+
         if images is not None:
             pixel_values = []
             for i, image in enumerate(images):
                 pixel_values.append(self.image_transform(image))
             inputs['pixel_values'] = pad_sequence(pixel_values, batch_first=True)
+
         return inputs
 
     @classmethod
