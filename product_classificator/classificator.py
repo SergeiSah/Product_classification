@@ -1,12 +1,12 @@
 import os
 import pickle
 import torch
-import numpy as np
 from PIL import Image
 
 from .ruclip.ruclip_model import CLIP
 from .ruclip.processor import RuCLIPProcessor
 from .ruclip.predictor import Predictor
+from .ruclip.onnx_model import ONNXCLIP
 
 
 class Classificator:
@@ -20,8 +20,10 @@ class Classificator:
                  heads_ver: str = 'wb-6_cats-pca',
                  cache_dir: str = '/tmp/ruclip/'):
 
+        self.model_name = model_name
         self.device = device
         self.heads_ver = heads_ver
+        self.cache_dir = cache_dir
         self.available_heads = [head.split('.')[0] for head in os.listdir(os.path.join(self.path_to_heads, heads_ver))
                                 if head.endswith('.pt')]
 
@@ -68,11 +70,7 @@ class Classificator:
         if characteristics is None:
             characteristics = self.heads.keys()
 
-        with torch.no_grad():
-            text_vec = self.clip_predictor.get_text_latents(texts).detach().cpu().numpy()
-            image_vec = self.clip_predictor.get_image_latents(images).detach().cpu().numpy()
-
-        concat_vec = np.concatenate([text_vec, image_vec], axis=1)
+        concat_vec = self.get_products_embeddings(texts, images).detach().cpu().numpy()
 
         if self.reducer is not None:
             concat_vec = self.reducer.transform(concat_vec)
@@ -84,6 +82,18 @@ class Classificator:
 
         return results
 
+    def get_products_embeddings(self,
+                                texts: str | list[str],
+                                images: Image.Image | list[Image.Image]) -> torch.Tensor:
+
+        with torch.no_grad():
+            text_vec = self.clip_predictor.get_text_latents(texts)
+            image_vec = self.clip_predictor.get_image_latents(images)
+
+            concat_vec = torch.cat((image_vec, text_vec), dim=1)
+
+        return concat_vec
+
     def load_head(self, name):
         """
         Загружает MLP классификатор, обученный для предсказания заданной характеристики товара.
@@ -93,3 +103,15 @@ class Classificator:
         """
         self.heads[name] = torch.load(f'{self.path_to_heads}/{self.heads_ver}/{name}.pt')
         self.heads[name].eval()
+
+    def get_clip(self):
+        return self.clip_predictor.clip_model
+
+    def get_processor(self):
+        return self.clip_predictor.clip_processor
+
+    def set_onnx_clip(self):
+        self.clip_predictor.clip_model = ONNXCLIP(self.clip_predictor.clip_model,
+                                                  self.device,
+                                                  os.path.join(self.cache_dir, self.model_name))
+
