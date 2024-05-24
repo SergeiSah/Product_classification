@@ -17,7 +17,7 @@ class Predictor:
             inputs = self.clip_processor(text=inputs, return_tensors='pt', padding=True)['input_ids']
 
         text_latents = self.clip_model.encode_text(inputs.to(self.device))
-        return text_latents / text_latents.norm(dim=-1, keepdim=True)
+        return torch.nn.functional.normalize(text_latents, p=2, dim=-1)
 
     def get_image_latents(self, inputs: Image.Image | list[Image.Image] | torch.Tensor):
         if isinstance(inputs, Image.Image):
@@ -26,4 +26,4 @@ class Predictor:
             inputs = self.clip_processor(images=inputs, return_tensors='pt', padding=True)['pixel_values']
 
         image_latents = self.clip_model.encode_image(inputs.to(self.device))
-        return image_latents / image_latents.norm(dim=-1, keepdim=True)
+        return torch.nn.functional.normalize(image_latents, p=2, dim=-1)
