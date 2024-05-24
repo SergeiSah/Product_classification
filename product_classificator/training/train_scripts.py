@@ -17,13 +17,13 @@ from product_classificator import load
 from ..ruclip.predictor import Predictor
 from ..ruclip.processor import RuCLIPProcessor
 from ..ruclip.ruclip_model import CLIP
-from .modules.cleaner import clean_dataset, TextCleaner
-from .modules.char_processor import CharExtractor, CharReducer
-from .modules.dataset import get_char_dataloaders, get_ruclip_dataloader
-from .modules.train_procedure import train_mlp_classifier, train_ruclip_one_epoch
-from .modules.visualisation import *
-from .modules.clusterization import *
-from .modules.timer import Timer
+from .utils.cleaner import clean_dataset, TextCleaner
+from .utils.char_processor import CharExtractor, CharReducer
+from .utils.dataset import get_char_dataloaders, get_ruclip_dataloader
+from .utils.train_procedure import train_mlp_classifier, train_ruclip_one_epoch
+from .utils.visualisation import *
+from .utils.clusterization import *
+from product_classificator.utils.timer import Timer
 
 
 class Trainer:

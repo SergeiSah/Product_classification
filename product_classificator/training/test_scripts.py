@@ -4,10 +4,10 @@ import pandas as pd
 from more_itertools import chunked
 from tqdm import tqdm
 
-from .modules.timer import Timer
-from .modules.image_loader import get_images, get_images_from_zip, is_files_in_zip
-from .modules.cleaner import clean_dataset, TextCleaner
-from .modules.char_processor import CharExtractor, CharReducer
+from product_classificator.utils.timer import Timer
+from .utils.image_loader import get_images, get_images_from_zip, is_files_in_zip
+from .utils.cleaner import clean_dataset, TextCleaner
+from .utils.char_processor import CharExtractor, CharReducer
 from product_classificator import Classificator
 
 
