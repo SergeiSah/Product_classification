@@ -116,34 +116,36 @@ def test_classifier_inference_time(clf: Classificator,
                 log.loc[i, 'load_images'] = timer.last_period.total_seconds()
 
                 with timer:
-                    image_tensors = processor(images=images_batch, return_tensors='pt', padding=True)['pixel_values']
+                    pixel_values = processor(images=images_batch, return_tensors='pt',
+                                             padding=True)['pixel_values'].to(clf.device)
                 log.loc[i, 'img_process'] = timer.last_period.total_seconds()
 
                 with timer:
-                    text_tokens = processor(text=texts_batch, return_tensors='pt', padding=True)['input_ids']
+                    input_ids = processor(text=texts_batch, return_tensors='pt',
+                                          padding=True)['input_ids'].to(clf.device)
                 log.loc[i, 'txt_process'] = timer.last_period.total_seconds()
 
                 with timer:
-                    image_latents = clf.clip_predictor.get_image_latents(image_tensors)
+                    image_latents = clf.clip_predictor.get_image_latents(pixel_values)
                 log.loc[i, 'img_encode'] = timer.last_period.total_seconds()
 
                 with timer:
-                    text_latents = clf.clip_predictor.get_text_latents(text_tokens)
+                    text_latents = clf.clip_predictor.get_text_latents(input_ids)
                 log.loc[i, 'txt_encode'] = timer.last_period.total_seconds()
 
                 with timer:
                     concat_latents = torch.cat((image_latents, text_latents), dim=1)
 
                     if clf.reducer is not None:
-                        concat_latents = torch.tensor(
+                        concat_latents = torch.Tensor(
                             clf.reducer.transform(concat_latents.detach().cpu().numpy()))
 
                     results = {}
                     for name in characteristics:
                         indexes = clf.heads[name](concat_latents).argmax(dim=1).detach().cpu().numpy()
                         results[name] = [clf.label_to_char[name][index] for index in indexes]
-
                 log.loc[i, 'predictions'] = timer.last_period.total_seconds()
+
             log.loc[i, 'cols_sum'] = log.iloc[i, 0:-1].sum()
             log.loc[i, 'sum_batch_time'] = timer_sum.last_period.total_seconds()
 
@@ -160,7 +162,7 @@ def test_ruclip_training_time(clf: Classificator,
                               loss_img: torch.nn.Module,
                               loss_txt: torch.nn.Module,
                               warming_up_batches_num: int = 20,
-                              num_last_resblocks: int = 2) -> pd.DataFrame:
+                              num_last_resblocks: int = 4) -> pd.DataFrame:
 
     batches = _start_test(clf,
                           image_names,
@@ -210,17 +212,14 @@ def test_ruclip_training_time(clf: Classificator,
             log.loc[i, 'txt_process'] = timer.last_period.total_seconds()
 
             with timer:
-                image_features = clip.encode_image(pixel_values)
+                image_features = clf.clip_predictor.get_image_latents(pixel_values)
             log.loc[i, 'img_encode'] = timer.last_period.total_seconds()
 
             with timer:
-                text_features = clip.encode_text(input_ids)
+                text_features = clf.clip_predictor.get_text_latents(input_ids)
             log.loc[i, 'txt_encode'] = timer.last_period.total_seconds()
 
             with timer:
-                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-                text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-
                 logit_scale = clip.logit_scale.exp()
                 logits_per_image = logit_scale * image_features @ text_features.t()
                 logits_per_text = logits_per_image.t()

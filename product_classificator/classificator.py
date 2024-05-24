@@ -11,16 +11,19 @@ from .ruclip.predictor import Predictor
 
 class Classificator:
     path_to_heads = os.path.join(os.path.dirname(__file__), 'heads')
-    available_heads = ['category', 'sub_category', 'isadult', 'sex', 'season', 'age_restrictions', 'fragility']
+    base_head_version = 'wb-6_cats-pca'
 
     def __init__(self,
                  device='cpu',
                  heads=None,
                  model_name='ruclip-vit-base-patch16-384',
-                 heads_ver='wb-6_cats-pca',
-                 cache_dir='/tmp/ruclip/'):
+                 heads_ver: str = 'wb-6_cats-pca',
+                 cache_dir: str = '/tmp/ruclip/'):
 
         self.device = device
+        self.heads_ver = heads_ver
+        self.available_heads = [head.split('.')[0] for head in os.listdir(os.path.join(self.path_to_heads, heads_ver))
+                                if head.endswith('.pt')]
 
         if heads is None:
             heads = ['category', 'sub_category', 'isadult']
@@ -28,8 +31,6 @@ class Classificator:
             for head in heads:
                 if head not in self.available_heads:
                     raise ValueError(f'Unknown head: {head}, available heads: {self.available_heads}')
-
-        self.heads_ver = heads_ver
 
         self.clip_predictor = Predictor(
             CLIP.from_pretrained(cache_dir + model_name).eval().to(device),

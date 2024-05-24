@@ -10,10 +10,10 @@ class Predictor:
         self.clip_model.eval()
         self.clip_processor = clip_processor
 
-    def get_text_latents(self, inputs: str | list[str] | torch.LongTensor):
+    def get_text_latents(self, inputs: str | list[str] | torch.Tensor):
         if isinstance(inputs, str):
             inputs = [inputs]
-        if not isinstance(inputs, torch.LongTensor):
+        if not isinstance(inputs, torch.Tensor):
             inputs = self.clip_processor(text=inputs, return_tensors='pt', padding=True)['input_ids']
 
         text_latents = self.clip_model.encode_text(inputs.to(self.device))
