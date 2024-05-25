@@ -1,5 +1,5 @@
 from .onnx_model import ONNXCLIP
-from .ruclip_model import CLIP
+from .model import CLIP
 from .predictor import Predictor
 from .processor import RuCLIPProcessor
 
