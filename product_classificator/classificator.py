@@ -3,7 +3,8 @@ import pickle
 import torch
 from PIL import Image
 
-from .ruclip.ruclip_model import CLIP
+from .utils import export_onnx
+from .ruclip.model import CLIP
 from .ruclip.processor import RuCLIPProcessor
 from .ruclip.predictor import Predictor
 from .ruclip.onnx_model import ONNXCLIP
@@ -20,6 +21,7 @@ class Classificator:
                  heads_ver: str = 'wb-6_cats-pca',
                  cache_dir: str = '/tmp/ruclip/'):
 
+        self.is_onnx = False
         self.model_name = model_name
         self.device = device
         self.heads_ver = heads_ver
@@ -110,8 +112,48 @@ class Classificator:
     def get_processor(self):
         return self.clip_predictor.clip_processor
 
-    def set_onnx_clip(self):
+    def export_model_to_onnx(self, text, image, opset_version: int = 14, dynamic_axes: dict = None):
+        dynamic_axes = dynamic_axes or {
+            "input":  {0: "batch_size",
+                       1: "sequence_len"},
+            "output": {0: "batch_size"}
+        }
+
+        export_onnx(self, text, image, opset_version, dynamic_axes)
+
+    def to_onnx_clip(self):
+        if not self.is_onnx_created():
+            raise FileNotFoundError('.onnx files not found. Run `export_model_to_onnx` method first')
+
         self.clip_predictor.clip_model = ONNXCLIP(self.clip_predictor.clip_model,
                                                   self.device,
                                                   os.path.join(self.cache_dir, self.model_name))
+        self.is_onnx = True
 
+    def to_clip(self):
+        self.clip_predictor.clip_model = CLIP.from_pretrained(self.cache_dir + self.model_name).eval().to(self.device)
+        self.is_onnx = False
+
+    def is_onnx_created(self):
+        path_to_model = os.path.join(self.cache_dir, self.model_name)
+        is_visual = os.path.exists(os.path.join(path_to_model, "clip_visual.onnx"))
+        is_transformer = os.path.exists(os.path.join(path_to_model, "clip_transformer.onnx"))
+        return is_visual and is_transformer
+
+    def to(self, device):
+        self.device = device
+        self.clip_predictor.device = device
+
+        if self.is_onnx:
+            self.to_onnx_clip()
+        else:
+            self.clip_predictor.clip_model = self.clip_predictor.clip_model.to(device)
+
+        return self
+
+    def __repr__(self):
+        return f'''Classificator: 
+                    model_name={self.model_name}, 
+                    heads_ver={self.heads_ver}, 
+                    heads={self.heads} 
+                    device={self.device}'''
