@@ -88,7 +88,7 @@ class Classificator:
                                 texts: str | list[str],
                                 images: Image.Image | list[Image.Image]) -> torch.Tensor:
 
-        with torch.no_grad():
+        with torch.inference_mode():
             text_vec = self.clip_predictor.get_text_latents(texts)
             image_vec = self.clip_predictor.get_image_latents(images)
 

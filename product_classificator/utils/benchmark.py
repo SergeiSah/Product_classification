@@ -69,7 +69,7 @@ class SpeedTest:
         if empty_cuda_cache:
             torch.cuda.empty_cache()
 
-        with torch.no_grad():
+        with torch.inference_mode():
             for i in range(iterations_num):
                 for j, (texts_batch, images_batch) in tqdm(enumerate(self.batches(texts, images, batch_size)),
                                                            total=len(texts) // batch_size,
