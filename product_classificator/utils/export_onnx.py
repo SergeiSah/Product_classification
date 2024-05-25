@@ -7,8 +7,8 @@ from PIL import Image
 def export_onnx(clf,
                 text,
                 image,
-                opset_version: int = 14,
-                dynamic_axes=None):
+                opset_version: int,
+                dynamic_axes: dict):
 
     assert isinstance(text, str)
     assert isinstance(image, Image.Image)
@@ -17,16 +17,6 @@ def export_onnx(clf,
     processor = clf.get_processor()
 
     folder = os.path.join(clf.cache_dir, clf.model_name)
-
-    dynamic_axes = dynamic_axes or {
-        "input": {
-            0: "batch_size",
-            1: "sequence_len"
-        },
-        "output": {
-            0: "batch_size"
-        }
-    }
 
     dummy = processor(text=[text], images=[image], return_tensors='pt', padding=True)
     dummy_text = clip.token_embedding(dummy['input_ids']).type(clip.dtype).permute(1, 0, 2)

@@ -16,7 +16,7 @@ from clearml import Task
 from product_classificator import load
 from ..ruclip.predictor import Predictor
 from ..ruclip.processor import RuCLIPProcessor
-from ..ruclip.ruclip_model import CLIP
+from ..ruclip.model import CLIP
 from .utils.cleaner import clean_dataset, TextCleaner
 from .utils.char_processor import CharExtractor, CharReducer
 from .utils.dataset import get_char_dataloaders, get_ruclip_dataloader
