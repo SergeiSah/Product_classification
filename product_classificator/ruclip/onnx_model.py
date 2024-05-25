@@ -13,7 +13,7 @@ class ONNXCLIP:
 
         providers = ['CUDAExecutionProvider'] if device == 'cuda' else ['CPUExecutionProvider']
 
-        self.clip = clip
+        self.clip = clip.to(device)
         self.device = device
 
         self.options = SessionOptions()

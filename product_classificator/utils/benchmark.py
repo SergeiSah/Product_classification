@@ -73,7 +73,7 @@ class SpeedTest:
             for i in range(iterations_num):
                 for j, (texts_batch, images_batch) in tqdm(enumerate(self.batches(texts, images, batch_size)),
                                                            total=len(texts) // batch_size,
-                                                           desc='Inference'):
+                                                           desc=f'Inference (batch: {batch_size})'):
                     with timer:
                         self.clf.classify_products(texts_batch, images_batch)
                     log.loc[j, f'iter_{i}'] = timer.last_period.total_seconds()

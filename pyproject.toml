@@ -16,14 +16,14 @@ tqdm = "^4.66.0"
 scikit-learn = "^1.4.0"
 clearml = "^1.15.1"
 umap-learn = "^0.5.6"
-onnxruntime = {version="^1.18.0", optional = true}
+onnxruntime-gpu = {version="^1.18.0", optional = true}
 gpustat = {version = "^1.1.1", optional = true}
-psutil = {version = "^5.9.8", optional = true}
+psutil = {version = "^5.9.0", optional = true}
 
 [tool.poetry.extras]
-onnx = ["onnxruntime"]
+onnx = ["onnxruntime-gpu"]
 benchmark = ["gpustat", "psutil"]
-
+all = ["onnxruntime-gpu", "gpustat", "psutil"]
 
 [build-system]
 requires = ["poetry-core"]

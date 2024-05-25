@@ -125,7 +125,9 @@ class Classificator:
         if not self.is_onnx_created():
             raise FileNotFoundError('.onnx files not found. Run `export_model_to_onnx` method first')
 
-        self.clip_predictor.clip_model = ONNXCLIP(self.clip_predictor.clip_model,
+        clip = self.clip_predictor.clip_model
+
+        self.clip_predictor.clip_model = ONNXCLIP(clip.clip if self.is_onnx else clip,
                                                   self.device,
                                                   os.path.join(self.cache_dir, self.model_name))
         self.is_onnx = True
@@ -141,6 +143,9 @@ class Classificator:
         return is_visual and is_transformer
 
     def to(self, device):
+        if self.device == device:
+            return self
+
         self.device = device
         self.clip_predictor.device = device
 
@@ -155,5 +160,5 @@ class Classificator:
         return f'''Classificator: 
                     model_name={self.model_name}, 
                     heads_ver={self.heads_ver}, 
-                    heads={self.heads} 
+                    heads={self.heads.keys()}, 
                     device={self.device}'''
