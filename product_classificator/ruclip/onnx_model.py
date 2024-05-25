@@ -1,9 +1,8 @@
 import os
-import json
 import torch
 import numpy as np
 from onnxruntime import InferenceSession, SessionOptions
-from .ruclip_model import CLIP
+from .model import CLIP
 
 
 class ONNXCLIP:
