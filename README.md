@@ -4,7 +4,7 @@ Model for classification of a product on the basis of its image and text descrip
 by the following approach: 
 - using one of the [ruCLIP models](https://github.com/ai-forever/ru-clip/tree/main) embeddings of images and 
 text descriptions are obtained;
-- embeddings are concatenated and fed to the input of an 
+- embeddings are concatenated, reduced with PCA and fed to the input of an 
 [MLP](https://pytorch.org/vision/main/generated/torchvision.ops.MLP.html)
 classificators, trained on dataset  with product images and descriptions from 
 Wildberries online marketplace.
@@ -75,6 +75,24 @@ for i, ax in enumerate(axes):
 ```
 ![pics/example.png](./pics/example.png)
 
+To get embeddings of products, use the following method:
+
+```python
+clf.get_products_embeddings(texts, images)
+```
+
+### Convert model to ONNX
+
+To use model in .onnx format, first export it and then load for use:
+
+```python
+# to export model an example of input text and image is needed
+clf.export_model_to_onnx(text, image)
+clf.to_onnx_clip()
+```
+
+To return for using base pytorch model, use `.to_clip()` method.
+
 ## Training
 
 By default, classificator utilizes ruCLIP model without additional training on WB dataset, only MLP head classificators 
@@ -113,6 +131,19 @@ disk in `Trainer().cache_dir` directory. Embeddings are cached in RAM. To delete
 
 All training results will be saved in `Trainer().experiment_dir` directory.
 
+### WB dataset
+
+- Train data: image, title, description and characteristics for a product.
+- Test data: image, title, description, category, subcategory, price, brand and isadult marker for a product.
+
+Images are stored in `wb_school_horizcv_images.zip` file.
+
+Table data are presented in `.parquet` format.
+- `wb_school_train.parquet`
+- `wb_school_test.parquet`
+
+Column `nm` indicates unique identifier of a product. It coincides with image name (without extension).
+
 ### Logging
 
 To log training with clearml set task parameter of the training methods
@@ -124,3 +155,17 @@ trainer.train_ruclip(task)
 ```
 
 **Example**: [ruCLIP training](https://github.com/SergeiSah/Product_classification/blob/master/study/Training%20example.ipynb)
+
+# Inference
+
+Speed tests of inference, performed on a machine with the following elements:
+- CPU: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, 6 cores, 12 threads
+- GPU: NVIDIA GeForce RTX 2060 (6 GB)
+
+|     | batch 1 | batch 32 | batch 64 |
+|-----|---------|----------|----------|
+| CPU | 495 ms  | 410 ms   | 406 ms   |
+| GPU | 50 ms   | 41 ms    | 40 ms    |
+
+In the table above time for processing of one pair text/image in batches of different sizes is shown.
+[Example of inference measurements](https://github.com/SergeiSah/Product_classification/blob/master/examples/Inference_time.ipynb)
