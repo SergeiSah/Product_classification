@@ -112,14 +112,18 @@ class Classificator:
     def get_processor(self):
         return self.clip_predictor.clip_processor
 
-    def export_model_to_onnx(self, text, image, opset_version: int = 14, dynamic_axes: dict = None):
-        dynamic_axes = dynamic_axes or {
-            "input":  {0: "batch_size",
-                       1: "sequence_len"},
-            "output": {0: "batch_size"}
-        }
+    def export_model_to_onnx(self, text, image, params: dict = None):
+        params = params or dict(
+            input_names=['input'], output_names=['output'],
+            export_params=True, verbose=False, opset_version=17,
+            do_constant_folding=True,
+            dynamic_axes={
+                "input":  {0: "batch_size",
+                           1: "sequence_len"},
+                "output": {0: "batch_size"}
+            })
 
-        export_onnx(self, text, image, opset_version, dynamic_axes)
+        export_onnx(self, text, image, params)
 
     def to_onnx_clip(self):
         if not self.is_onnx_created():
