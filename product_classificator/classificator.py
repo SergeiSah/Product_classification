@@ -40,6 +40,7 @@ class Classificator:
             CLIP.from_pretrained(cache_dir + model_name).eval().to(device),
             RuCLIPProcessor.from_pretrained(cache_dir + model_name),
             device,
+            self.is_onnx
         )
 
         self.heads = {}
@@ -137,10 +138,12 @@ class Classificator:
                                                   self.device,
                                                   os.path.join(self.cache_dir, self.model_name))
         self.is_onnx = True
+        self.clip_predictor.is_onnx = True
 
     def to_clip(self):
         self.clip_predictor.clip_model = CLIP.from_pretrained(self.cache_dir + self.model_name).eval().to(self.device)
         self.is_onnx = False
+        self.clip_predictor.is_onnx = False
 
     def is_onnx_created(self):
         path_to_model = os.path.join(self.cache_dir, self.model_name)

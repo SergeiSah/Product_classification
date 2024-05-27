@@ -2,6 +2,7 @@ import os.path
 
 import torch
 from PIL import Image
+from ..ruclip.onnx_model import Textual
 
 
 def export_onnx(clf,
@@ -14,11 +15,12 @@ def export_onnx(clf,
 
     clip = clf.get_clip()
     processor = clf.get_processor()
+    textual = Textual(clip)
 
     folder = os.path.join(clf.cache_dir, clf.model_name)
 
     dummy = processor(text=[text], images=[image], return_tensors='pt', padding=True)
-    dummy_text = clip.token_embedding(dummy['input_ids'].to(clf.clip_predictor.device)).type(clip.dtype).permute(1, 0, 2)
+    dummy_text = dummy['input_ids'].to(clf.clip_predictor.device)
     dummy_image = dummy['pixel_values'].to(clf.clip_predictor.device)
 
     torch.onnx.export(
@@ -29,7 +31,7 @@ def export_onnx(clf,
     )
 
     torch.onnx.export(
-        clip.transformer,
+        textual,
         dummy_text.to(clf.clip_predictor.device),
         os.path.join(folder, "clip_transformer.onnx"),
         **params

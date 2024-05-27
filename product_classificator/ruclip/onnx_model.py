@@ -26,18 +26,12 @@ class ONNXCLIP:
         self.session_visual.disable_fallback()
 
     def encode_image(self, pixel_values):
-        return self.session_visual.run(["output"], {"input": pixel_values})
+        output, = self.session_visual.run(["output"], {"input": np.array(pixel_values)})
+        return torch.from_numpy(output).to(self.device)
 
     def encode_text(self, input_ids):
-        x = self.clip.token_embedding(input_ids).type(self.clip.dtype)  # [batch_size, n_ctx, d_model]
-        x = x + self.clip.positional_embedding.type(self.clip.dtype)
-        x = x.permute(1, 0, 2)
-        x = self.session_transformer.run(["output"], {"input": x})
-        x = x.permute(1, 0, 2)
-        x = self.clip.ln_final(x).type(self.clip.dtype)
-        # x.shape = [batch_size, n_ctx, transformer.width]
-        x = x[torch.arange(x.shape[0]), torch.where(input_ids == self.clip.eos_id)[1]] @ self.clip.text_projection
-        return x
+        output, = self.session_transformer.run(["output"], {"input": np.array(input_ids)})
+        return torch.from_numpy(output).to(self.device)
 
     def forward(self, input_ids, pixel_values):
         image_features = self.encode_image(pixel_values)
@@ -45,3 +39,25 @@ class ONNXCLIP:
 
         return text_features, image_features
 
+
+class Textual(torch.nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.transformer = model.transformer
+        self.positional_embedding = model.positional_embedding
+        self.transformer = model.transformer
+        self.ln_final = model.ln_final
+        self.text_projection = model.text_projection
+        self.token_embedding = model.token_embedding
+
+    def forward(self, text):
+        x = self.token_embedding(text)  # [batch_size, n_ctx, d_model]
+
+        x = x + self.positional_embedding
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = self.transformer(x)
+        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = self.ln_final(x)
+        x = x[torch.arange(x.shape[0]), text.float().argmax(dim=-1)] @ self.text_projection
+
+        return x
