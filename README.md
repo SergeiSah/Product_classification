@@ -167,5 +167,5 @@ Speed tests of inference, performed on a machine with the following elements:
 | CPU | 495 ms  | 410 ms   | 406 ms   |
 | GPU | 50 ms   | 41 ms    | 40 ms    |
 
-In the table above time for processing of one pair text/image in batches of different sizes is shown.
+In the table above time for processing of one pair text/image in batches of different sizes is shown.<br>
 [Example of inference measurements](https://github.com/SergeiSah/Product_classification/blob/master/examples/Inference_time.ipynb)
