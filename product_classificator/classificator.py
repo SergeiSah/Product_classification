@@ -115,7 +115,9 @@ class Classificator:
     def export_model_to_onnx(self, text, image, params: dict = None):
         params = params or dict(
             input_names=['input'], output_names=['output'],
-            export_params=True, verbose=False, opset_version=17,
+            export_params=True,
+            verbose=False,
+            opset_version=14,
             do_constant_folding=True,
             dynamic_axes={
                 "input":  {0: "batch_size",
