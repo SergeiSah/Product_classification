@@ -163,8 +163,5 @@ class Classificator:
         return self
 
     def __repr__(self):
-        return f'''Classificator: 
-                    model_name={self.model_name}, 
-                    heads_ver={self.heads_ver}, 
-                    heads={self.heads.keys()}, 
-                    device={self.device}'''
+        return f'Classificator(model_name={self.model_name}, heads_ver={self.heads_ver}, heads={self.heads.keys()}, ' \
+               f'device={self.device}'
