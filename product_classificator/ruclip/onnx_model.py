@@ -26,17 +26,14 @@ class ONNXCLIP:
         self.session_visual.disable_fallback()
 
     def encode_image(self, pixel_values):
-        pixel_values = pixel_values.cpu().detach().numpy().astype(np.float32)
-        return torch.Tensor(np.array(self.session_visual.run(["output"],
-                                                             {"input": np.array(pixel_values)}))).to(self.device).squeeze(0)
+        return self.session_visual.run(["output"], {"input": pixel_values})
 
     def encode_text(self, input_ids):
         x = self.clip.token_embedding(input_ids).type(self.clip.dtype)  # [batch_size, n_ctx, d_model]
         x = x + self.clip.positional_embedding.type(self.clip.dtype)
-        x = x.permute(1, 0, 2).detach().cpu().numpy()  # NLD -> LND
-        x = torch.Tensor(np.array(self.session_transformer.run(["output"],
-                                                               {"input": np.array(x)}))).to(self.device).squeeze(0)
-        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = x.permute(1, 0, 2)
+        x = self.session_transformer.run(["output"], {"input": x})
+        x = x.permute(1, 0, 2)
         x = self.clip.ln_final(x).type(self.clip.dtype)
         # x.shape = [batch_size, n_ctx, transformer.width]
         x = x[torch.arange(x.shape[0]), torch.where(input_ids == self.clip.eos_id)[1]] @ self.clip.text_projection
