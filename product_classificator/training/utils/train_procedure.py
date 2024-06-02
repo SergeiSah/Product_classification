@@ -1,10 +1,10 @@
 import torch
 import numpy as np
 from sklearn.metrics import f1_score
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 
 
-def train_mlp_classifier(mlp, dataloaders, criterion, optimizer, param_name, epochs=12, device='cpu'):
+def train_mlp_classifier(mlp, dataloaders, criterion, optimizer, param_name, epochs):
     """
     Функция для обучения классификатора.
     """
@@ -19,8 +19,8 @@ def train_mlp_classifier(mlp, dataloaders, criterion, optimizer, param_name, epo
         y_true = np.array([])
 
         for X_batch, y_batch in dataloaders['train']:
-            X_batch = X_batch.squeeze().to(device)
-            y_batch = y_batch.squeeze().to(device)
+            X_batch = X_batch.squeeze()
+            y_batch = y_batch.squeeze()
 
             optimizer.zero_grad()
             y_pred = mlp(X_batch)
@@ -37,7 +37,7 @@ def train_mlp_classifier(mlp, dataloaders, criterion, optimizer, param_name, epo
         history['train_f1'].append(f1_score(y_true, y_preds, average='macro'))
 
         if 'valid' in dataloaders:
-            test_loss, f1 = eval_mlp_classifier(mlp, dataloaders['valid'], criterion, device)
+            test_loss, f1 = eval_mlp_classifier(mlp, dataloaders['valid'], criterion)
 
             history['valid_loss'].append(test_loss)
             history['valid_f1'].append(f1)
@@ -51,7 +51,7 @@ def train_mlp_classifier(mlp, dataloaders, criterion, optimizer, param_name, epo
     return history, best_params
 
 
-def eval_mlp_classifier(mlp, test_dataloader, criterion, device='cpu'):
+def eval_mlp_classifier(mlp, test_dataloader, criterion):
     """
     Функция для оценки качества модели на тестовой выборке.
     """
@@ -63,8 +63,8 @@ def eval_mlp_classifier(mlp, test_dataloader, criterion, device='cpu'):
 
     with torch.no_grad():
         for X_batch, y_batch in test_dataloader:
-            X_batch = X_batch.squeeze().to(device)
-            y_batch = y_batch.squeeze().to(device)
+            X_batch = X_batch.squeeze()
+            y_batch = y_batch.squeeze()
 
             y_pred = mlp(X_batch)
 
@@ -76,16 +76,15 @@ def eval_mlp_classifier(mlp, test_dataloader, criterion, device='cpu'):
     return np.mean(loss), f1_score(y_true, y_preds, average='macro')
 
 
-def train_ruclip_one_epoch(clip, dataloader, loss_img, loss_txt, optimizer, device='cpu'):
+def train_ruclip_one_epoch(clip, dataloader, loss_img, loss_txt, optimizer, device):
 
-    embeddings = torch.zeros((len(dataloader.dataset), 1024), dtype=torch.float32)
     losses = []
 
     clip.train()
     for batch in tqdm(dataloader, desc='Batch', leave=False, total=len(dataloader)):
         optimizer.zero_grad()
 
-        idxs, pixel_values, input_ids = batch
+        pixel_values, input_ids = batch
 
         pixel_values = pixel_values.squeeze().to(device)
         input_ids = input_ids.squeeze().to(device)
@@ -94,12 +93,8 @@ def train_ruclip_one_epoch(clip, dataloader, loss_img, loss_txt, optimizer, devi
         text_features = clip.encode_text(input_ids)
 
         # normalize features
-        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-
-        concat = torch.cat((image_features, text_features), dim=1).detach().cpu()
-        for i, idx in enumerate(idxs):
-            embeddings[idx] = concat[i]
+        image_features = torch.nn.functional.normalize(image_features, p=2, dim=-1)
+        text_features = torch.nn.functional.normalize(text_features, p=2, dim=-1)
 
         # cosine similarity as logits
         logit_scale = clip.logit_scale.exp()
@@ -119,4 +114,11 @@ def train_ruclip_one_epoch(clip, dataloader, loss_img, loss_txt, optimizer, devi
         losses.append(loss.item())
 
     clip.eval()
-    return embeddings, np.mean(losses)
+    return np.mean(losses)
+
+
+__all__ = [
+    'train_mlp_classifier',
+    'eval_mlp_classifier',
+    'train_ruclip_one_epoch'
+]
