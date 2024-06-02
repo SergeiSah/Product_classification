@@ -112,8 +112,9 @@ class EmbedCharDataset(Dataset):
             txt_tokens = []
             img_tensors = []
             for i, image_name in enumerate(image_names):
-                img = self.predictor.clip_processor(images=images[i:i+1])['pixel_values']
-                txt = self.predictor.clip_processor(text=descriptions[i:i+1])['input_ids']
+                with torch.no_grad():
+                    img = self.predictor.clip_processor(images=images[i:i+1])['pixel_values']
+                    txt = self.predictor.clip_processor(text=descriptions[i:i+1])['input_ids']
 
                 img_tensors.append(img.view(1, 3, self.img_size, self.img_size))
                 txt_tokens.append(txt.view(1, self.tokens_num))
