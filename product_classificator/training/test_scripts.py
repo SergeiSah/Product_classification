@@ -1,13 +1,10 @@
-import os
 import torch
 import pandas as pd
 from more_itertools import chunked
 from tqdm import tqdm
 
-from product_classificator.utils.timer import Timer
-from .utils.image_loader import get_images, get_images_from_zip, is_files_in_zip
-from .utils.cleaner import clean_dataset, TextCleaner
-from .utils.char_processor import CharExtractor, CharReducer
+from product_classificator.utils import Timer
+from product_classificator.training.utils import get_images, get_images_from_zip, is_files_in_zip
 from product_classificator import Classificator
 
 
@@ -41,47 +38,6 @@ def _start_test(clf, image_names, texts, characteristics, batch_size, path_to_im
 
     print('Done')
     return batches
-
-
-def test_preprocessing_time(path_to_dfs: str,
-                            train_name: str = 'wb_school_train.parquet',
-                            test_name: str = 'wb_school_test.parquet',
-                            iterations_num: int = 5) -> pd.DataFrame:
-
-    timer = Timer()
-    log = pd.DataFrame(
-        dtype='float64'
-    )
-
-    for it in tqdm(range(iterations_num), desc='Iterations'):
-        with timer:
-            train_df = pd.read_parquet(os.path.join(path_to_dfs, train_name))
-            test_df = pd.read_parquet(os.path.join(path_to_dfs, test_name))
-        log.loc[it, 'loading_dfs'] = timer.last_period.total_seconds()
-
-        with timer:
-            train_df = clean_dataset(train_df)
-            test_df = clean_dataset(test_df, ['price', 'brand'])
-        log.loc[it, 'cleaning_dfs'] = timer.last_period.total_seconds()
-
-        with timer:
-            char_extractor = CharExtractor()
-            char_reducer = CharReducer()
-
-            train_df = char_extractor.fit_transform(train_df)
-            train_df = char_reducer.fit_transform(train_df)
-        log.loc[it, 'processing_chars'] = timer.last_period.total_seconds()
-
-        cleaner = TextCleaner()
-        with timer:
-            train_df['description'] = cleaner.fit_transform(train_df['description'])
-        log.loc[it, 'cleaning_train_desc'] = timer.last_period.total_seconds()
-
-        with timer:
-            test_df['description'] = cleaner.fit_transform(test_df['description'])
-        log.loc[it, 'cleaning_test_desc'] = timer.last_period.total_seconds()
-
-    return log
 
 
 def test_classifier_inference_time(clf: Classificator,
@@ -257,4 +213,4 @@ def test_ruclip_training_time(clf: Classificator,
     return log
 
 
-__all__ = ['test_classifier_inference_time', 'test_ruclip_training_time', 'test_preprocessing_time']
+__all__ = ['test_classifier_inference_time', 'test_ruclip_training_time']
