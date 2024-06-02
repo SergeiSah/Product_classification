@@ -7,7 +7,6 @@ tqdm.pandas()
 
 __all__ = [
     'Trainer',
-    'test_preprocessing_time',
     'test_classifier_inference_time',
     'test_ruclip_training_time'
 ]
